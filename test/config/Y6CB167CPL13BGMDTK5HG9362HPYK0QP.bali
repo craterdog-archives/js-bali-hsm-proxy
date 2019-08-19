@@ -1,0 +1,12 @@
+[
+    $protocol: v1
+    $timestamp: <2019-08-19T16:29:23.661>
+    $tag: #0FZA0ZG1ZYAPDFNCDXM76PYHMYDWV8ZB
+    $version: v2
+    $digest: '
+        G058YB7QBJ3KL1ZB4013YJMQA04HVLZNWVF297NM1RNAY052TQNBDZ8KKZKV
+        DJKBR2TPR77S5V5WN344QJM7H5BVNXYSLBCRXVPH420
+    '
+](
+    $type: /bali/notary/Citation/v1
+)
