@@ -82,10 +82,8 @@ exports.api = function(debug) {
          */
         initializeAPI: async function() {
             try {
-                if (debug) console.log(new Date());
                 peripheral = await findPeripheral(debug);
                 this.initializeAPI = undefined;  // can only be called successfully once
-                if (debug) console.log(new Date());
             } catch (cause) {
                 const exception = bali.exception({
                     $module: '/bali/notary/v1/HSMProxy',
@@ -105,14 +103,12 @@ exports.api = function(debug) {
          */
         generateKeys: async function() {
             try {
-                if (debug) console.log(new Date());
                 if (debug) console.log("\nGenerating the keys...");
                 if (this.initializeAPI) await this.initializeAPI();
                 secret = crypto.randomBytes(32);
                 var request = formatRequest('generateKeys', secret);
                 const publicKey = await processRequest(peripheral, request, debug);
                 if (debug) console.log("public key: '" + bali.codex.base32Encode(publicKey, '    ') + "'");
-                if (debug) console.log(new Date());
                 return publicKey;
             } catch (cause) {
                 const exception = bali.exception({
@@ -132,7 +128,6 @@ exports.api = function(debug) {
          */
         rotateKeys: async function() {
             try {
-                if (debug) console.log(new Date());
                 if (debug) console.log("\nRotating the keys...");
                 if (this.initializeAPI) await this.initializeAPI();
                 previousSecret = secret;
@@ -140,7 +135,6 @@ exports.api = function(debug) {
                 var request = formatRequest('rotateKeys', previousSecret, secret);
                 const publicKey = await processRequest(peripheral, request, debug);
                 if (debug) console.log("public key: '" + bali.codex.base32Encode(publicKey, '    ') + "'");
-                if (debug) console.log(new Date());
                 return publicKey;
             } catch (cause) {
                 const exception = bali.exception({
@@ -161,13 +155,11 @@ exports.api = function(debug) {
          */
         eraseKeys: async function() {
             try {
-                if (debug) console.log(new Date());
                 if (debug) console.log("\nErasing the keys...");
                 if (this.initializeAPI) await this.initializeAPI();
                 const request = formatRequest('eraseKeys');
                 const succeeded = (await processRequest(peripheral, request, debug))[0] ? true : false;
                 if (debug) console.log("succeeded: " + succeeded);
-                if (debug) console.log(new Date());
                 return succeeded;
             } catch (cause) {
                 const exception = bali.exception({
@@ -191,13 +183,11 @@ exports.api = function(debug) {
          */
         digestBytes: async function(bytes) {
             try {
-                if (debug) console.log(new Date());
                 if (debug) console.log("\nDigesting bytes...");
                 if (this.initializeAPI) await this.initializeAPI();
                 const request = formatRequest('digestBytes', bytes);
                 const digest = await processRequest(peripheral, request, debug);
                 if (debug) console.log("digest: '" + bali.codex.base32Encode(digest, '    ') + "'");
-                if (debug) console.log(new Date());
                 return digest;
             } catch (cause) {
                 const exception = bali.exception({
@@ -223,7 +213,6 @@ exports.api = function(debug) {
          */
         signBytes: async function(bytes) {
             try {
-                if (debug) console.log(new Date());
                 if (debug) console.log("\nSigning bytes...");
                 if (this.initializeAPI) await this.initializeAPI();
                 var request;
@@ -237,7 +226,6 @@ exports.api = function(debug) {
                 }
                 const signature = await processRequest(peripheral, request, debug);
                 if (debug) console.log("signature: '" + bali.codex.base32Encode(signature, '    ') + "'");
-                if (debug) console.log(new Date());
                 return signature;
             } catch (cause) {
                 const exception = bali.exception({
@@ -265,13 +253,11 @@ exports.api = function(debug) {
          */
         validSignature: async function(aPublicKey, signature, bytes) {
             try {
-                if (debug) console.log(new Date());
                 if (debug) console.log("\nValidating a signature...");
                 if (this.initializeAPI) await this.initializeAPI();
                 var request = formatRequest('validSignature', aPublicKey, signature, bytes);
                 const isValid = (await processRequest(peripheral, request, debug))[0] ? true : false;
                 if (debug) console.log("is valid: " + isValid);
-                if (debug) console.log(new Date());
                 return isValid;
             } catch (cause) {
                 const exception = bali.exception({
