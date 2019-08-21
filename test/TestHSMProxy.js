@@ -14,10 +14,10 @@ const mocha = require('mocha');
 const assert = require('chai').assert;
 const expect = require('chai').expect;
 const bali = require('bali-component-framework');
-const accountId = bali.tag();
+const accountTag = bali.tag();
 const directory = 'test/config/';
 const hsm = require('../').api(debug);
-const notaryAPI = require('bali-digital-notary').api(hsm, accountId, directory, debug);
+const notaryAPI = require('bali-digital-notary').api(hsm, accountTag, directory, debug);
 
 
 describe('Bali Nebula™ HSM Proxy', function() {
@@ -28,8 +28,8 @@ describe('Bali Nebula™ HSM Proxy', function() {
 
     describe('Test Key Generation', function() {
 
-        it('should return the correct accountId', function() {
-            expect(notaryAPI.getAccountId().isEqualTo(accountId)).to.equal(true);
+        it('should return the correct account tag', function() {
+            expect(notaryAPI.getAccountTag().isEqualTo(accountTag)).to.equal(true);
         });
 
         it('should return the protocols', async function() {
