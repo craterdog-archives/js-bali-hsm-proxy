@@ -38,13 +38,17 @@ describe('Bali Nebula™ HSM Proxy', function() {
         });
 
         it('should generate the keys', async function() {
-            notaryCertificate = await notaryAPI.generateKey();
+            const catalog = await notaryAPI.generateKey();
+            expect(catalog).to.exist;
+            notaryCertificate = await notaryAPI.signComponent(catalog);
             expect(notaryCertificate).to.exist;
+            certificateCitation = await notaryAPI.activateKey(notaryCertificate);
         });
 
         it('should retrieve the certificate citation', async function() {
-            certificateCitation = await notaryAPI.getCitation();
-            expect(certificateCitation).to.exist;
+            const expected = await notaryAPI.getCitation();
+            expect(expected).to.exist;
+            expect(certificateCitation.isEqualTo(expected)).to.equal(true);
         });
 
     });
