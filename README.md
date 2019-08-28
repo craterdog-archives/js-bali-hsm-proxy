@@ -3,7 +3,7 @@
 ### Bali Nebula™ HSM Proxy
 This project defines a JavaScript implementation of the Bali Nebula™ security module interface that acts as a proxy to a BLE based hardware security module. This proxy can be plugged into the digital notary classes for the [_Bali Nebula™_](https://github.com/craterdog-bali/bali-project-documentation/wiki).
 
-![Pyramid](docs/images/BaliPyramid.png)
+![Architecture](docs/images/BaliNebulaArchitecture.png)
 
 _**WARNING**_
 _This project is still in its early stages and the classes and interfaces to the classes are likely to change._
