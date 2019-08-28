@@ -28,7 +28,7 @@ const notary = require('bali-hsm-proxy');
 ### State Machine
 The remote hardware security module (HSM) must implement a simple state machine consisting of the three possible state in which the HSM may be at any given time as well as the transitions between states caused by each type of request.
 
-![State Machine](https://github.com/craterdog-bali/js-bali-hsm-proxy/blob/master/docs/images/StateMachine.png)
+![State Machine](docs/images/StateMachine.png)
 
 #### States
 The three states include the following:
