@@ -26,6 +26,14 @@ describe('Bali Nebula™ HSM Proxy', function() {
     var certificateCitation;
     var component = bali.parse('[$foo: "bar"]($tag: #MFPCRNKS2SG20CD7VQ6KD329X7382KJY, $version: v1, $permissions: /bali/permissions/public/v1, $previous: none)');
 
+    describe('Test Key Erasure', function() {
+
+        it('should erase all keys properly', async function() {
+            await notaryAPI.forgetKey();
+        });
+
+    });
+
     describe('Test Key Generation', function() {
 
         it('should return the correct account tag', function() {
