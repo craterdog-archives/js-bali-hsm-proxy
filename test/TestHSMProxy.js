@@ -158,12 +158,13 @@ describe('Bali Nebula™ HSM Proxy', function() {
             var matches = await notaryAPI.citationMatches(citation, document);
             expect(matches).to.equal(true);
 
-            document = bali.duplicate(document);
-            const parameters = document.getParameters();
-            parameters.setParameter('$tag', document.getValue('$component').getParameters().getParameter('$tag'));
-            parameters.setParameter('$version', 'v2');
-            parameters.setParameter('$permissions', bali.parse('/bali/permissions/public/v1'));
-            parameters.setParameter('$previous', bali.NONE);
+            const parameters = bali.parameters({
+                $tag: document.getValue('$component').getParameters().getValue('$tag'),
+                $version: 'v2',
+                $permissions: '/bali/permissions/public/v1',
+                $previous: bali.pattern.NONE
+            });
+            document = bali.duplicate(document, parameters);
             document = await notaryAPI.notarizeDocument(document);
 
             citation = await notaryAPI.citeDocument(document);
