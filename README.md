@@ -1,7 +1,7 @@
-![Logo](https://raw.githubusercontent.com/craterdog-bali/bali-project-documentation/master/images/CraterDogLogo.png)
+![Logo](docs/images/CraterDogLogo.png)
 
 ### Bali Nebula™ HSM Proxy
-This project defines a JavaScript implementation of the Bali Nebula™ security module interface that acts as a proxy to a BLE based hardware security module. This proxy can be plugged into the digital notary classes for the [_Bali Nebula™_](https://github.com/craterdog-bali/bali-project-documentation/wiki).
+This project defines a JavaScript implementation of the Bali Nebula™ security module interface that acts as a proxy to a BLE based hardware security module. This proxy can be plugged into the digital notary classes for the _Bali Nebula™_.
 
 ![Architecture](docs/images/BaliNebulaArchitecture.png)
 
