@@ -8,28 +8,28 @@
  * Source Initiative. (See http://opensource.org/licenses/MIT)          *
  ************************************************************************/
 
-const debug = false;  // set to true for exception logging
+const debug = 0;
 const crypto = require('crypto');
 const mocha = require('mocha');
 const assert = require('chai').assert;
 const expect = require('chai').expect;
-const bali = require('bali-component-framework');
-const accountTag = bali.tag();
+const bali = require('bali-component-framework').api();
+const account = bali.tag();
 const directory = 'test/config/';
-const hsm = require('../').api(debug);
-const notaryAPI = require('bali-digital-notary').api(hsm, accountTag, directory, debug);
+const proxy = require('../').proxy(directory, debug);
+const notary = require('bali-digital-notary').notary(proxy, account, directory, debug);
 
 
 describe('Bali Nebula™ HSM Proxy', function() {
 
     var notaryCertificate;
     var certificateCitation;
-    var component = bali.parse('[$foo: "bar"]($tag: #MFPCRNKS2SG20CD7VQ6KD329X7382KJY, $version: v1, $permissions: /bali/permissions/public/v1, $previous: none)');
+    var component = bali.component('[$foo: "bar"]($tag: #MFPCRNKS2SG20CD7VQ6KD329X7382KJY, $version: v1, $permissions: /bali/permissions/public/v1, $previous: none)');
 
     describe('Test Key Erasure', function() {
 
         it('should erase all keys properly', async function() {
-            await notaryAPI.forgetKey();
+            await notary.forgetKey();
         });
 
     });
@@ -37,24 +37,24 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Key Generation', function() {
 
         it('should return the correct account tag', function() {
-            expect(notaryAPI.getAccountTag().isEqualTo(accountTag)).to.equal(true);
+            expect(notary.getAccount().isEqualTo(account)).to.equal(true);
         });
 
         it('should return the protocols', async function() {
-            const protocols = await notaryAPI.getProtocols();
+            const protocols = await notary.getProtocols();
             expect(protocols).to.exist;
         });
 
         it('should generate the keys', async function() {
-            const catalog = await notaryAPI.generateKey();
+            const catalog = await notary.generateKey();
             expect(catalog).to.exist;
-            notaryCertificate = await notaryAPI.notarizeDocument(catalog);
+            notaryCertificate = await notary.notarizeDocument(catalog);
             expect(notaryCertificate).to.exist;
-            certificateCitation = await notaryAPI.activateKey(notaryCertificate);
+            certificateCitation = await notary.activateKey(notaryCertificate);
         });
 
         it('should retrieve the certificate citation', async function() {
-            const expected = await notaryAPI.getCitation();
+            const expected = await notary.getCitation();
             expect(expected).to.exist;
             expect(certificateCitation.isEqualTo(expected)).to.equal(true);
         });
@@ -66,12 +66,12 @@ describe('Bali Nebula™ HSM Proxy', function() {
         it('should validate the certificate', async function() {
             expect(notaryCertificate.getValue('$protocol').toString()).to.equal('v1');
             const certificate = notaryCertificate.getValue('$component');
-            var isValid = await notaryAPI.documentValid(notaryCertificate, certificate);
+            var isValid = await notary.validDocument(notaryCertificate, certificate);
             expect(isValid).to.equal(true);
         });
 
         it('should validate the citation for the certificate', async function() {
-            var isValid = await notaryAPI.citationMatches(certificateCitation, notaryCertificate);
+            var isValid = await notary.citationMatches(certificateCitation, notaryCertificate);
             expect(isValid).to.equal(true);
         });
 
@@ -83,12 +83,12 @@ describe('Bali Nebula™ HSM Proxy', function() {
             const tag = bali.tag();
             const previous = bali.catalog({
                 $protocol: bali.version(),
-                $timestamp: bali.parse('<2019-02-24T22:41:18.843>'),
+                $timestamp: bali.component('<2019-02-24T22:41:18.843>'),
                 $tag: tag,
                 $version: bali.version([2, 3]),
-                $digest: bali.parse("'JB2NG73VTB957T9TZWT44KRZVQ467KWJ2MSJYT6YW2RQAYQMSR861XGM5ZCDCPNJYR612SJT9RFKHA9YZ5DJMLYC7N3127AY4QDVJ38'")
+                $digest: bali.component("'JB2NG73VTB957T9TZWT44KRZVQ467KWJ2MSJYT6YW2RQAYQMSR861XGM5ZCDCPNJYR612SJT9RFKHA9YZ5DJMLYC7N3127AY4QDVJ38'")
             }, bali.parameters({
-                $type: bali.parse('/bali/notary/Citation/v1')
+                $type: bali.component('/bali/notary/Citation/v1')
             }));
             const transaction = bali.catalog({
                 $transactionId: bali.tag(),
@@ -97,20 +97,20 @@ describe('Bali Nebula™ HSM Proxy', function() {
                 $merchant: bali.reference('https://www.starbucks.com/'),
                 $amount: 4.95
             }, bali.parameters({
-                $type: bali.parse('/acme/types/Transaction/v2.3'),
+                $type: bali.component('/acme/types/Transaction/v2.3'),
                 $tag: tag,
                 $version: bali.version([2, 4]),
-                $permissions: bali.parse('/bali/permissions/public/v1'),
+                $permissions: bali.component('/bali/permissions/public/v1'),
                 $previous: previous
             }));
-            var document = await notaryAPI.notarizeDocument(transaction);
+            var document = await notary.notarizeDocument(transaction);
 
             const certificate = notaryCertificate.getValue('$component');
 
-            var citation = await notaryAPI.citeDocument(document);
-            var isValid = await notaryAPI.documentValid(document, certificate);
+            var citation = await notary.citeDocument(document);
+            var isValid = await notary.validDocument(document, certificate);
             expect(isValid).to.equal(true);
-            var matches = await notaryAPI.citationMatches(citation, document);
+            var matches = await notary.citationMatches(citation, document);
             expect(matches).to.equal(true);
         });
 
@@ -119,25 +119,25 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Key Rotation', function() {
 
         it('should rotate a notary key properly', async function() {
-            var newNotaryCertificate = await notaryAPI.rotateKey();
+            var newNotaryCertificate = await notary.refreshKey();
             expect(newNotaryCertificate).to.exist;
 
             const certificate = notaryCertificate.getValue('$component');
             const newCertificate = newNotaryCertificate.getValue('$component');
 
-            var isValid = await notaryAPI.documentValid(newNotaryCertificate, certificate);
+            var isValid = await notary.validDocument(newNotaryCertificate, certificate);
             expect(isValid).to.equal(true);
 
-            var document = await notaryAPI.notarizeDocument(component);
+            var document = await notary.notarizeDocument(component);
+            var citation = await notary.citeDocument(document);
 
-            var citation = await notaryAPI.citeDocument(document);
-            isValid = await notaryAPI.documentValid(document, certificate);
+            isValid = await notary.validDocument(document, certificate);
             expect(isValid).to.equal(false);
 
-            isValid = await notaryAPI.documentValid(document, newCertificate);
+            isValid = await notary.validDocument(document, newCertificate);
             expect(isValid).to.equal(true);
 
-            var matches = await notaryAPI.citationMatches(citation, document);
+            var matches = await notary.citationMatches(citation, document);
             expect(matches).to.equal(true);
 
             notaryCertificate = newNotaryCertificate;
@@ -148,14 +148,14 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Multiple Notarizations', function() {
 
         it('should notarized a component twice properly', async function() {
-            var document = await notaryAPI.notarizeDocument(component);
+            var document = await notary.notarizeDocument(component);
 
             const certificate = notaryCertificate.getValue('$component');
 
-            var citation = await notaryAPI.citeDocument(document);
-            var isValid = await notaryAPI.documentValid(document, certificate);
+            var citation = await notary.citeDocument(document);
+            var isValid = await notary.validDocument(document, certificate);
             expect(isValid).to.equal(true);
-            var matches = await notaryAPI.citationMatches(citation, document);
+            var matches = await notary.citationMatches(citation, document);
             expect(matches).to.equal(true);
 
             const parameters = bali.parameters({
@@ -164,13 +164,13 @@ describe('Bali Nebula™ HSM Proxy', function() {
                 $permissions: '/bali/permissions/public/v1',
                 $previous: bali.pattern.NONE
             });
-            document = bali.duplicate(document, parameters);
-            document = await notaryAPI.notarizeDocument(document);
+            document = document.duplicate(parameters);
+            document = await notary.notarizeDocument(document);
 
-            citation = await notaryAPI.citeDocument(document);
-            isValid = await notaryAPI.documentValid(document, certificate);
+            citation = await notary.citeDocument(document);
+            isValid = await notary.validDocument(document, certificate);
             expect(isValid).to.equal(true);
-            matches = await notaryAPI.citationMatches(citation, document);
+            matches = await notary.citationMatches(citation, document);
             expect(matches).to.equal(true);
         });
 
@@ -179,9 +179,9 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Key Erasure', function() {
 
         it('should erase all keys properly', async function() {
-            await notaryAPI.forgetKey();
+            await notary.forgetKey();
             try {
-                await notaryAPI.notarizeDocument(component);
+                await notary.notarizeDocument(component);
                 assert.fail('The attempt to sign a component without a key should have failed.');
             } catch (error) {
                 // expected

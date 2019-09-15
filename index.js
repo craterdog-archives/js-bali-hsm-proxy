@@ -9,16 +9,22 @@
  ************************************************************************/
 'use strict';
 
-/**
- * This function returns an object that implements the API for a security module and
- * acts as a proxy to a BLE enabled hardware security module (HSM).
- * 
- * @param {Boolean} debug An optional flag that determines whether or not exceptions
- * will be logged to the error console.
- * @returns {Object} An object that implements the API for a security module.
- */
-exports.api = function(debug) {
-    const securityModule = require('./src/v1/HSMProxy').api(debug);
-    return securityModule;
-};
 
+/**
+ * This function returns an object that implements the API for a remote hardware security module.
+ * 
+ * @param {String} directory An optional directory to be used for local configuration storage.
+ * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
+ * the level of debugging that occurs:
+ * <pre>
+ *   0 (or false): debugging turned off
+ *   1 (or true): log exceptions to console.error
+ *   2: perform argument validation and log exceptions to console.error
+ *   3: perform argument validation and log exceptions to console.error and debug info to console.log
+ * </pre>
+ * @returns {Object} An object that implements the API for a remote hardware security module.
+ */
+exports.proxy = function(directory, debug) {
+    const proxy = new require('./src/v1/HSMProxy').HSMProxy(directory, debug);
+    return proxy;
+};

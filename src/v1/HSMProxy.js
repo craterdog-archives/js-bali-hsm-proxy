@@ -10,272 +10,484 @@
 'use strict';
 
 /*
- * This module uses the singleton pattern to provide an object that acts as a PROXY to
- * a hardware security module (HSM) for all cryptographic operations.  All cryptographic
- * operations are initiated via bluetooth and performed on the actual HSM.
+ * This class implements a proxy to a remote hardware security module that is capable of
+ * performing the following functions:
+ * <pre>
+ *   * generateKeys - generate a new public-private key pair and return the public key
+ *   * digestBytes - generate a cryptographic digest of an array of bytes
+ *   * signBytes - digitally sign an array of bytes using the private key
+ *   * validSignature - check whether or not the digital signature of an array of bytes is valid
+ *   * rotateKeys - replace the existing public-private key pair with new pair
+ *   * eraseKeys - erases any trace of the public-private key pair
+ * </pre>
  */
 const crypto = require('crypto');
 const bluetooth = require('@abandonware/noble');
-const bali = require('bali-component-framework');
+const bali = require('bali-component-framework').api();
 
 
 // PRIVATE CONSTANTS
 
-// The algorithms for this version of the protocol
+// the POSIX end of line character
+const EOL = '\n';
+
+// the algorithms for this version of the protocol
 const PROTOCOL = 'v1';
 const DIGEST = 'sha512';
 const SIGNATURE = 'ed25519';
-const BLOCK_SIZE = 510;  // the maximum MTU size minus the header bytes
 
-// These are viewed from the client (mobile device) perspective
+// byte array sizes
+const KEY_SIZE = 32;  // bytes
+const BLOCK_SIZE = 510;  // the maximum MTU size minus the two header bytes
+
+// these are viewed from the client (mobile device) perspective
 const UART_SERVICE_ID = '6e400001b5a3f393e0a9e50e24dcca9e';
 const UART_WRITE_ID = '6e400002b5a3f393e0a9e50e24dcca9e';
 const UART_NOTIFICATION_ID = '6e400003b5a3f393e0a9e50e24dcca9e';
 
-
-// PUBLIC API
-
-/**
- * This function returns a singleton object that implements the API for the hardware
- * security module (HSM).
- *
- * @param {Boolean} debug An optional flag that determines whether or not exceptions
- * will be logged to the error console.
- * @returns {Object} An object that implements the security module API.
- */
-exports.api = function(debug) {
-    debug = debug || false;
-    var peripheral;
-    var secret, previousSecret;
-
-    return {
-
-        /**
-         * This function returns a string describing the attributes of the HSM.
-         * 
-         * @returns {String} A string describing the attributes of the HSM.
-         */
-        toString: function() {
-            const string =
-                '[\n' +
-                '    $module: /bali/notary/' + PROTOCOL + '/HSMProxy\n' +
-                '    $protocol: ' + PROTOCOL + '\n' +
-                '    $digest: "' + DIGEST + '"\n' +
-                '    $signature: "' + SIGNATURE + '"\n' +
-                ']';
-            return string;
-        },
-
-        /**
-         * This function returns the version of the security protocol supported by this
-         * security module.
-         * 
-         * @returns {String} The version of the security protocol supported by this security
-         * module.
-         */
-        getProtocol: function() {
-            return PROTOCOL;
-        },
-
-        /**
-         * This function initializes the API.
-         */
-        initializeAPI: async function() {
-            try {
-                peripheral = await findPeripheral(debug);
-                this.initializeAPI = undefined;  // can only be called successfully once
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$initializeAPI',
-                    $exception: '$unexpected',
-                    $text: bali.text('The HSM could not be initialized.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        },
-
-        /**
-         * This function generates a new public-private key pair.
-         * 
-         * @returns {Buffer} A byte buffer containing the new public key.
-         */
-        generateKeys: async function() {
-            try {
-                if (debug) console.log("\nGenerating the keys...");
-                if (this.initializeAPI) await this.initializeAPI();
-                secret = crypto.randomBytes(32);
-                var request = formatRequest('generateKeys', secret);
-                const publicKey = await processRequest(peripheral, request, debug);
-                if (debug) console.log("public key: '" + bali.codex.base32Encode(publicKey, '    ') + "'");
-                return publicKey;
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$generateKeys',
-                    $exception: '$unexpected',
-                    $text: bali.text('A new key pair could not be generated.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        },
-        /**
-         * This function replaces the existing public-private key pair with a new one.
-         * 
-         * @returns {Buffer} A byte buffer containing the new public key.
-         */
-        rotateKeys: async function() {
-            try {
-                if (debug) console.log("\nRotating the keys...");
-                if (this.initializeAPI) await this.initializeAPI();
-                previousSecret = secret;
-                secret = crypto.randomBytes(32);
-                var request = formatRequest('rotateKeys', previousSecret, secret);
-                const publicKey = await processRequest(peripheral, request, debug);
-                if (debug) console.log("public key: '" + bali.codex.base32Encode(publicKey, '    ') + "'");
-                return publicKey;
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$rotateKeys',
-                    $exception: '$unexpected',
-                    $text: bali.text('A new key pair could not be generated.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        },
-
-        /**
-         * This function deletes any existing public-private key pairs.
-         * 
-         * @returns {Boolean} Whether or not the keys were successfully erased.
-         */
-        eraseKeys: async function() {
-            try {
-                if (debug) console.log("\nErasing the keys...");
-                if (this.initializeAPI) await this.initializeAPI();
-                const request = formatRequest('eraseKeys');
-                const succeeded = (await processRequest(peripheral, request, debug))[0] ? true : false;
-                if (debug) console.log("succeeded: " + succeeded);
-                return succeeded;
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$eraseKeys',
-                    $exception: '$unexpected',
-                    $text: bali.text('The keys could not be erased.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        },
-
-        /**
-         * This function returns a cryptographically secure digital digest of the
-         * specified bytes. The generated digital digest will always be the same
-         * for the same bytes.
-         *
-         * @param {Buffer} bytes The bytes to be digested.
-         * @returns {Buffer} A byte buffer containing a digital digest of the bytes.
-         */
-        digestBytes: async function(bytes) {
-            try {
-                if (debug) console.log("\nDigesting bytes...");
-                if (this.initializeAPI) await this.initializeAPI();
-                const request = formatRequest('digestBytes', bytes);
-                const digest = await processRequest(peripheral, request, debug);
-                if (debug) console.log("digest: '" + bali.codex.base32Encode(digest, '    ') + "'");
-                return digest;
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$digestBytes',
-                    $exception: '$unexpected',
-                    $text: bali.text('A digest of the bytes could not be generated.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        },
-
-        /**
-         * This function generates a digital signature of the specified bytes using
-         * the current private key (or the old private key, one time only, if it exists).
-         * This allows a new certificate to be signed using the previous private key.
-         * The resulting digital signature can then be verified using the corresponding
-         * public key.
-         * 
-         * @param {Buffer} bytes The bytes to be digitally signed.
-         * @returns {Buffer} A byte buffer containing the resulting digital signature.
-         */
-        signBytes: async function(bytes) {
-            try {
-                if (debug) console.log("\nSigning bytes...");
-                if (this.initializeAPI) await this.initializeAPI();
-                var request;
-                if (previousSecret) {
-                    request = formatRequest('signBytes', previousSecret, bytes);
-                    previousSecret = undefined;
-                } else if (secret) {
-                    request = formatRequest('signBytes', secret, bytes);
-                } else {
-                    throw Error('No keys exist.');
-                }
-                const signature = await processRequest(peripheral, request, debug);
-                if (debug) console.log("signature: '" + bali.codex.base32Encode(signature, '    ') + "'");
-                return signature;
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$signBytes',
-                    $exception: '$unexpected',
-                    $text: bali.text('A digital signature of the bytes could not be generated.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        },
-
-        /**
-         * This function uses the specified public key to determine whether or not
-         * the specified digital signature was generated using the corresponding
-         * private key on the specified bytes.
-         *
-         * @param {Buffer} aPublicKey A byte buffer containing the public key to be
-         * used to validate the signature.
-         * @param {Buffer} signature A byte buffer containing the digital signature
-         * allegedly generated using the corresponding private key.
-         * @param {Buffer} bytes The digitally signed bytes.
-         * @returns {Boolean} Whether or not the digital signature is valid.
-         */
-        validSignature: async function(aPublicKey, signature, bytes) {
-            try {
-                if (debug) console.log("\nValidating a signature...");
-                if (this.initializeAPI) await this.initializeAPI();
-                var request = formatRequest('validSignature', aPublicKey, signature, bytes);
-                const isValid = (await processRequest(peripheral, request, debug))[0] ? true : false;
-                if (debug) console.log("is valid: " + isValid);
-                return isValid;
-            } catch (cause) {
-                const exception = bali.exception({
-                    $module: '/bali/notary/v1/HSMProxy',
-                    $procedure: '$validSignature',
-                    $exception: '$unexpected',
-                    $text: bali.text('The digital signature of the bytes could not be validated.')
-                }, cause);
-                if (debug) console.error(exception.toString());
-                throw exception;
-            }
-        }
-
-    };
+// define the finite state machine
+const EVENTS = [  //          possible events
+              '$generateKeys', '$rotateKeys', '$signBytes'
+];
+const STATES = {
+//   current                 allowed next states
+    $keyless: [ '$loneKey',      undefined,     undefined  ],
+    $loneKey: [  undefined,     '$twoKeys',    '$loneKey'  ],
+    $twoKeys: [  undefined,      undefined,    '$loneKey'  ]
 };
 
 
+// PUBLIC FUNCTIONS
+
+/**
+ * This function creates a new instance of a remote hardware security module (HSM) proxy.
+ *
+ * @param {String} directory An optional directory to be used for local configuration storage. If
+ * no directory is specified, a directory called '.bali/' is created in the home directory.
+ * @param {Boolean|Number} debug An optional number in the range [0..3] that controls the level of
+ * debugging that occurs:
+ * <pre>
+ *   0 (or false): no logging
+ *   1 (or true): log exceptions to console.error
+ *   2: perform argument validation and log exceptions to console.error
+ *   3: perform argument validation and log exceptions to console.error and debug info to console.log
+ * </pre>
+ * @returns {Object} The new hardware security module proxy.
+ */
+function HSMProxy(directory, debug) {
+    // validate the arguments
+    if (debug === null || debug === undefined) debug = 0;  // default is off
+    if (debug > 1) {
+        const validator = bali.validator(debug);
+        validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$HSMProxy', '$directory', directory, [
+            '/javascript/Undefined',
+            '/javascript/String'
+        ]);
+    }
+
+    // setup the configuration
+    const filename = 'HSMProxy' + PROTOCOL + '.bali';
+    const configurator = bali.configurator(filename, directory, debug);
+    var configuration, machine, peripheral;
+
+    /**
+     * This method returns a string describing the attributes of the HSM. It must not be an
+     * asynchronous function since it is part of the JavaScript language.
+     * 
+     * @returns {String} A string describing the attributes of the HSM.
+     */
+    this.toString = function() {
+        const catalog = bali.catalog({
+            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+            $protocol: PROTOCOL,
+            $digest: DIGEST,
+            $signature: SIGNATURE
+        });
+        return catalog.toString();
+    };
+
+    /**
+     * This method returns the unique tag for the security module.
+     * 
+     * @returns {Tag} The unique tag for the security module.
+     */
+    this.getTag = async function() {
+        try {
+            // load the current configuration if necessary
+            if (!configuration) {
+                configuration = await loadConfiguration(configurator, debug);
+                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+            }
+
+            return configuration.getValue('$tag');
+        } catch (cause) {
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$getTag',
+                $exception: '$unexpected',
+                $text: 'The tag for the security module could not be retrieved.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+
+    /**
+     * This method returns the version of the security protocol supported by this
+     * security module.
+     * 
+     * @returns {Version} The version string of the security protocol supported by this security
+     * module.
+     */
+    this.getProtocol = async function() {
+        try {
+            return bali.component(PROTOCOL);
+        } catch (cause) {
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$getProtocol',
+                $exception: '$unexpected',
+                $text: 'The protocol supported by the security module could not be retrieved.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    /**
+     * This method generates a new public-private key pair.
+     * 
+     * @returns {Binary} A binary string containing the new public key.
+     */
+    this.generateKeys = async function() {
+        try {
+            // check the current state
+            if (!configuration) {
+                configuration = await loadConfiguration(configurator, debug);
+                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+            }
+            machine.validateEvent('$generateKeys');
+
+            // generate a new key pair
+            if (debug > 2) console.log("\nGenerating the initial key pair...");
+            const secretKey = bali.binary(crypto.randomBytes(KEY_SIZE));
+            const request = formatRequest('generateKeys', secretKey.getValue());
+            if (!peripheral) peripheral = await findPeripheral(debug);
+            const publicKey = bali.binary(await processRequest(peripheral, request, debug));
+            configuration.setValue('$secretKey', secretKey);
+
+            // update the configuration
+            const state = machine.transitionState('$generateKeys');
+            configuration.setValue('$state', state);
+            await storeConfiguration(configurator, configuration, debug);
+
+            if (debug > 2) console.log('public key: ' + publicKey);
+            return publicKey;
+        } catch (cause) {
+            peripheral = undefined;
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$generateKeys',
+                $exception: '$unexpected',
+                $text: 'A new key pair could not be generated.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    /**
+     * This method replaces the existing public-private key pair with a new one.
+     * 
+     * @returns {Binary} A binary string containing the new public key.
+     */
+    this.rotateKeys = async function() {
+        try {
+            // check the current state
+            if (!configuration) {
+                configuration = await loadConfiguration(configurator, debug);
+                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+            }
+            machine.validateEvent('$rotateKeys');
+
+            // save the previous secret key
+            const previousSecretKey = configuration.getValue('$secretKey');
+            configuration.setValue('$previousSecretKey', previousSecretKey);
+
+            // generate a new key pair
+            if (debug > 2) console.log("\nGenerating a new key pair...");
+            const secretKey = bali.binary(crypto.randomBytes(KEY_SIZE));
+            const request = formatRequest('rotateKeys', previousSecretKey.getValue(), secretKey.getValue());
+            if (!peripheral) peripheral = await findPeripheral(debug);
+            const publicKey = bali.binary(await processRequest(peripheral, request, debug));
+            configuration.setValue('$secretKey', secretKey);
+
+            // update the configuration
+            const state = machine.transitionState('$rotateKeys');
+            configuration.setValue('$state', state);
+            await storeConfiguration(configurator, configuration, debug);
+
+            if (debug > 2) console.log('public key: ' + publicKey);
+            return publicKey;
+        } catch (cause) {
+            peripheral = undefined;
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$rotateKeys',
+                $exception: '$unexpected',
+                $text: 'The key pair could not be rotated.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    /**
+     * This method deletes any existing public-private key pairs.
+     * 
+     * @returns {Boolean} Whether or not the keys were successfully erased.
+     */
+    this.eraseKeys = async function() {
+        try {
+            // erase the keys on the remote hardware security module
+            if (debug > 2) console.log("\nErasing all key pairs...");
+            const request = formatRequest('eraseKeys');
+            if (!peripheral) peripheral = await findPeripheral(debug);
+            const succeeded = (await processRequest(peripheral, request, debug))[0] ? true : false;
+
+            // delete the current configuration
+            await deleteConfiguration(configurator, debug);
+            configuration = undefined;
+
+            if (debug > 2) console.log("succeeded: " + succeeded);
+            return succeeded;
+        } catch (cause) {
+            peripheral = undefined;
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$eraseKeys',
+                $exception: '$unexpected',
+                $text: 'The keys could not be erased.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    /**
+     * This method returns a cryptographically secure digital digest of the
+     * specified bytes. The generated digital digest will always be the same
+     * for the same bytes.
+     *
+     * @param {Buffer} bytes The bytes to be digested.
+     * @returns {Binary} A binary string containing a digital digest of the bytes.
+     */
+    this.digestBytes = async function(bytes) {
+        try {
+            // validate the arguments
+            if (debug > 1) {
+                const validator = bali.validator(debug);
+                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$digestBytes', '$bytes', bytes, [
+                    '/nodejs/Buffer'
+                ]);
+            }
+
+            // generate the digital digest of the bytes
+            if (debug > 2) console.log("\nDigesting the bytes...");
+            const request = formatRequest('digestBytes', bytes);
+            if (!peripheral) peripheral = await findPeripheral(debug);
+            const digest = bali.binary(await processRequest(peripheral, request, debug));
+
+            if (debug > 2) console.log('digest: ' + digest);
+            return digest;
+        } catch (cause) {
+            peripheral = undefined;
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$digestBytes',
+                $exception: '$unexpected',
+                $text: 'A digest of the bytes could not be generated.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    /**
+     * This method generates a digital signature of the specified bytes using
+     * the current private key (or the old private key, one time only, if it exists).
+     * This allows a new certificate to be signed using the previous private key.
+     * The resulting digital signature can then be verified using the corresponding
+     * public key.
+     * 
+     * @param {Buffer} bytes The bytes to be digitally signed.
+     * @returns {Binary} A binary string containing the resulting digital signature.
+     */
+    this.signBytes = async function(bytes) {
+        try {
+            // validate the arguments
+            if (debug > 1) {
+                const validator = bali.validator(debug);
+                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$signBytes', '$bytes', bytes, [
+                    '/nodejs/Buffer'
+                ]);
+            }
+
+            // check the current state
+            if (!configuration) {
+                configuration = await loadConfiguration(configurator, debug);
+                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+            }
+            machine.validateEvent('$signBytes');
+            if (debug > 2) console.log("\nSigning the bytes...");
+
+            // retrieve the secret key
+            var secretKey = configuration.removeValue('$previousSecretKey');
+            if (!secretKey) {
+                secretKey = configuration.getValue('$secretKey');
+            }
+
+            // digitally sign the bytes using the private key
+            const request = formatRequest('signBytes', secretKey.getValue(), bytes);
+            if (!peripheral) peripheral = await findPeripheral(debug);
+            const signature = bali.binary(await processRequest(peripheral, request, debug));
+
+            // update the configuration
+            const state = machine.transitionState('$signBytes');
+            configuration.setValue('$state', state);
+            await storeConfiguration(configurator, configuration, debug);
+
+            if (debug > 2) console.log('signature: ' + signature);
+            return signature;
+        } catch (cause) {
+            peripheral = undefined;
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$signBytes',
+                $exception: '$unexpected',
+                $text: 'A digital signature of the bytes could not be generated.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    /**
+     * This method uses the specified public key to determine whether or not
+     * the specified digital signature was generated using the corresponding
+     * private key on the specified bytes.
+     *
+     * @param {Binary} aPublicKey A binary string containing the public key to be
+     * used to validate the signature.
+     * @param {Binary} signature A binary string containing the digital signature
+     * allegedly generated using the corresponding private key.
+     * @param {Buffer} bytes The digitally signed bytes.
+     * @returns {Boolean} Whether or not the digital signature is valid.
+     */
+    this.validSignature = async function(aPublicKey, signature, bytes) {
+        try {
+            // validate the arguments
+            if (debug > 1) {
+                const validator = bali.validator(debug);
+                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$validSignature', '$aPublicKey', aPublicKey, [
+                    '/bali/elements/Binary'
+                ]);
+                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$validSignature', '$signature', signature, [
+                    '/bali/elements/Binary'
+                ]);
+                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$validSignature', '$bytes', bytes, [
+                    '/nodejs/Buffer'
+                ]);
+            }
+
+            // check the signature on the bytes
+            if (debug > 2) console.log("\nValidating the signature...");
+            const request = formatRequest('validSignature', aPublicKey.getValue(), signature.getValue(), bytes);
+            if (!peripheral) peripheral = await findPeripheral(debug);
+            const isValid = (await processRequest(peripheral, request, debug))[0] ? true : false;
+
+            if (debug > 2) console.log("is valid: " + isValid);
+            return isValid;
+        } catch (cause) {
+            peripheral = undefined;
+            const exception = bali.exception({
+                $module: '/bali/notary/v1/HSMProxy',
+                $procedure: '$validSignature',
+                $exception: '$unexpected',
+                $text: 'The digital signature of the bytes could not be validated.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    return this;
+};
+HSMProxy.prototype.constructor = HSMProxy;
+exports.HSMProxy = HSMProxy;
+
+
 // PRIVATE FUNCTIONS
+
+const storeConfiguration = async function(configurator, configuration, debug) {
+    try {
+        await configurator.store(configuration.toString() + EOL);
+    } catch (cause) {
+        const exception = bali.exception({
+            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+            $procedure: '$storeConfiguration',
+            $exception: '$storageException',
+            $text: 'The attempt to store the current configuration failed.'
+        }, cause);
+        if (debug > 0) console.error(exception.toString());
+        throw exception;
+    }
+};
+
+
+const loadConfiguration = async function(configurator, debug) {
+    try {
+        var configuration;
+        const source = await configurator.load();
+        if (source) {
+            configuration = bali.component(source);
+        } else {
+            configuration = bali.catalog({
+                $tag: bali.tag(),  // new random tag
+                $state: '$keyless'
+            });
+            await configurator.store(configuration.toString() + EOL);
+        }
+        return configuration;
+    } catch (cause) {
+        const exception = bali.exception({
+            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+            $procedure: '$loadConfiguration',
+            $exception: '$storageException',
+            $text: 'The attempt to load the current configuration failed.'
+        }, cause);
+        if (debug > 0) console.error(exception.toString());
+        throw exception;
+    }
+};
+
+
+const deleteConfiguration = async function(configurator, debug) {
+    try {
+        await configurator.delete();
+    } catch (cause) {
+        const exception = bali.exception({
+            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+            $procedure: '$deleteConfiguration',
+            $exception: '$storageException',
+            $text: 'The attempt to delete the current configuration failed.'
+        }, cause);
+        if (debug > 0) console.error(exception.toString());
+        throw exception;
+    }
+};
+
 
 /**
  * This function formats a request into a binary format prior to sending it via bluetooth.
