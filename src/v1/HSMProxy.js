@@ -557,13 +557,13 @@ const findPeripheral = function(debug) {
     return new Promise(function(resolve, reject) {
         bluetooth.on('discover', function(peripheral) {
             const advertisement = peripheral.advertisement;
-            if (debug) console.log('Found ' + advertisement.localName + '.');
-            if (advertisement.localName === 'ButtonUp') {
+            if (debug > 2) console.log('Found ' + advertisement.localName + '.');
+            if (advertisement.localName === 'ArmorD') {
                 bluetooth.stopScanning();
                 resolve(peripheral);
             }
         });
-        if (debug) console.log('Searching for an HSM...');
+        if (debug > 2) console.log('Searching for an HSM...');
         bluetooth.startScanning([UART_SERVICE_ID]);  // start searching for an HSM (asynchronously)
     });
 };
@@ -584,17 +584,17 @@ const findPeripheral = function(debug) {
  */
 const processBlock = function(input, output, block, debug) {
     return new Promise(function(resolve, reject) {
-        input.once('read', function(response, isNotification) {
-            if (debug) console.log('Read completed, ' + response.length + ' bytes read.');
+        input.once('read', function(response, isNotification) {  // isNotification should always be true
+            if (debug > 2) console.log('Read completed, ' + response.length + ' bytes read.');
             if (response.length === 1 && response.readUInt8(0) > 1) {
-                if (debug) console.log("response: " + response.readUInt8(0));
+                if (debug > 2) console.log("response: " + response.readUInt8(0));
                 reject('Processing of the block failed.');
             }
             resolve(response);
         });
         input.subscribe(function() {
             output.write(block, false, function() {
-                if (debug) console.log('Write completed, ' + block.length + ' bytes written.');
+                if (debug > 2) console.log('Write completed, ' + block.length + ' bytes written.');
                 // can't resolve it until the response is read
             });
         });
@@ -620,10 +620,10 @@ const processBlock = function(input, output, block, debug) {
 const processRequest = function(peripheral, request, debug) {
     return new Promise(function(resolve, reject) {
         if (peripheral) {
-            if (debug) console.log('Attempting to connect to the HSM...');
+            if (debug > 2) console.log('Attempting to connect to the HSM...');
             peripheral.connect(function(cause) {
                 if (!cause) {
-                    if (debug) console.log('Successfully connected.');
+                    if (debug > 2) console.log('Successfully connected.');
                     peripheral.discoverServices([UART_SERVICE_ID], function(cause, services) {
                         if (!cause && services.length === 1) {
                             services[0].discoverCharacteristics([], async function(cause, characteristics) {
@@ -635,7 +635,7 @@ const processRequest = function(peripheral, request, debug) {
                                         if (characteristic.uuid === UART_WRITE_ID) output = characteristic;
                                     });
                                     if (input && output) {
-                                        if (debug) console.log('Sending the request to the HSM...');
+                                        if (debug > 2) console.log('Sending the request to the HSM...');
                                         // process any extra blocks in reverse order
                                         var buffer, offset, blockSize;
                                         var extraBlocks = Math.ceil((request.length - 2) / BLOCK_SIZE) - 1;
@@ -654,10 +654,19 @@ const processRequest = function(peripheral, request, debug) {
                                             buffer = Buffer.concat([Buffer.from([0x00, block & 0xFF]), buffer], blockSize + 2);
                                     
                                             // process the extended request buffer
-                                            try {
-                                                await processBlock(input, output, buffer, debug);
-                                            } catch (cause) {
-                                                reject(cause);
+                                            var tryAgain = 3;  // retry twice
+                                            while (tryAgain--) {
+                                                try {
+                                                    await processBlock(input, output, buffer, debug);
+                                                    if (debug > 2) console.log('A block was successfully sent to the HSM.');
+                                                    break;
+                                                } catch (cause) {
+                                                    if (tryAgain) {
+                                                        if (debug > 2) console.log('Request failed, trying again...');
+                                                        continue;
+                                                    }
+                                                    reject(cause);
+                                                }
                                             }
 
                                             block--;
@@ -667,24 +676,33 @@ const processRequest = function(peripheral, request, debug) {
                                         blockSize = Math.min(request.length, BLOCK_SIZE + 2);
                                         buffer = request.slice(0, blockSize);
                                         try {
-                                            const response = await processBlock(input, output, buffer, debug);
-                                            if (debug) console.log('A response was received from the HSM.');
-                                            peripheral.disconnect(function() {
-                                                if (debug) console.log('Disconnected from the HSM.');
-                                                resolve(response);
-                                            });
+                                            var tryAgain = 3;  // retry twice
+                                            while (tryAgain--) {
+                                                try {
+                                                    const response = await processBlock(input, output, buffer, debug);
+                                                    if (debug > 2) console.log('A response was received from the HSM.');
+                                                    peripheral.disconnect(function() {
+                                                        if (debug > 2) console.log('Disconnected from the HSM.');
+                                                        resolve(response);
+                                                    });
+                                                    break;
+                                                } catch (cause) {
+                                                    if (tryAgain) continue;
+                                                    reject(cause);
+                                                }
+                                            }
                                         } catch (cause) {
                                             reject(cause);
                                         }
                                     } else {
                                         peripheral.disconnect(function() {
-                                            if (debug) console.log('Disconnected from the HSM.');
+                                            if (debug > 2) console.log('Disconnected from the HSM.');
                                             reject("The UART service doesn't support the right characteristics.");
                                         });
                                     }
                                 } else {
                                     peripheral.disconnect(function() {
-                                        if (debug) console.log('Disconnected from the HSM.');
+                                        if (debug > 2) console.log('Disconnected from the HSM.');
                                         reject(cause);
                                     });
                                 }
@@ -692,14 +710,14 @@ const processRequest = function(peripheral, request, debug) {
                         } else {
                             cause = cause || Error('Wrong number of UART services found.');
                             peripheral.disconnect(function() {
-                                if (debug) console.log('Disconnected from the HSM.');
+                                if (debug > 2) console.log('Disconnected from the HSM.');
                                 reject(cause);
                             });
                         }
                     });
                 } else {
                     peripheral.disconnect(function() {
-                        if (debug) console.log('Disconnected from the HSM.');
+                        if (debug > 2) console.log('Disconnected from the HSM.');
                         reject(cause);
                     });
                 }
