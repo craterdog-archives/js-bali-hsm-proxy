@@ -74,7 +74,7 @@ const STATES = {
  * </pre>
  * @returns {Object} The new hardware security module proxy.
  */
-function HSMProxy(directory, debug) {
+const HSMProxy = function(directory, debug) {
     // validate the arguments
     if (debug === null || debug === undefined) debug = 0;  // default is off
     if (debug > 1) {

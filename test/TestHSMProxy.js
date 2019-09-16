@@ -19,11 +19,11 @@ const directory = 'test/config/';
 const proxy = require('../').proxy(directory, debug);
 const notary = require('bali-digital-notary').notary(proxy, account, directory, debug);
 
-function sleep(ms){
+const sleep = function(ms){
     return new Promise(resolve=>{
         setTimeout(resolve,ms);
     });
-}
+};
 
 describe('Bali Nebula™ HSM Proxy', function() {
 
