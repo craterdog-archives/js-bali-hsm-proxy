@@ -8,7 +8,7 @@
  * Source Initiative. (See http://opensource.org/licenses/MIT)          *
  ************************************************************************/
 
-const debug = 3;
+const debug = 0;
 const crypto = require('crypto');
 const mocha = require('mocha');
 const assert = require('chai').assert;
@@ -19,6 +19,11 @@ const directory = 'test/config/';
 const proxy = require('../').proxy(directory, debug);
 const notary = require('bali-digital-notary').notary(proxy, account, directory, debug);
 
+function sleep(ms){
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms);
+    });
+}
 
 describe('Bali Nebula™ HSM Proxy', function() {
 
