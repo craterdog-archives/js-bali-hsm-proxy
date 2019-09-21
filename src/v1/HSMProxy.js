@@ -88,7 +88,7 @@ const HSMProxy = function(directory, debug) {
     // setup the configuration
     const filename = 'HSMProxy' + PROTOCOL + '.bali';
     const configurator = bali.configurator(filename, directory, debug);
-    var configuration, machine, peripheral;
+    var configuration, controller, peripheral;
 
     /**
      * This method returns a string describing the attributes of the HSM. It must not be an
@@ -116,7 +116,7 @@ const HSMProxy = function(directory, debug) {
             // load the current configuration if necessary
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
             }
 
             return configuration.getValue('$tag');
@@ -165,9 +165,9 @@ const HSMProxy = function(directory, debug) {
             // check the current state
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
             }
-            machine.validateEvent('$generateKeys');
+            controller.validateEvent('$generateKeys');
 
             // generate a new key pair
             if (debug > 2) console.log("\nGenerating the initial key pair...");
@@ -178,7 +178,7 @@ const HSMProxy = function(directory, debug) {
             configuration.setValue('$secretKey', secretKey);
 
             // update the configuration
-            const state = machine.transitionState('$generateKeys');
+            const state = controller.transitionState('$generateKeys');
             configuration.setValue('$state', state);
             await storeConfiguration(configurator, configuration, debug);
 
@@ -207,9 +207,9 @@ const HSMProxy = function(directory, debug) {
             // check the current state
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
             }
-            machine.validateEvent('$rotateKeys');
+            controller.validateEvent('$rotateKeys');
 
             // save the previous secret key
             const previousSecretKey = configuration.getValue('$secretKey');
@@ -224,7 +224,7 @@ const HSMProxy = function(directory, debug) {
             configuration.setValue('$secretKey', secretKey);
 
             // update the configuration
-            const state = machine.transitionState('$rotateKeys');
+            const state = controller.transitionState('$rotateKeys');
             configuration.setValue('$state', state);
             await storeConfiguration(configurator, configuration, debug);
 
@@ -337,9 +337,9 @@ const HSMProxy = function(directory, debug) {
             // check the current state
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                machine = bali.machine(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
             }
-            machine.validateEvent('$signBytes');
+            controller.validateEvent('$signBytes');
             if (debug > 2) console.log("\nSigning the bytes...");
 
             // retrieve the secret key
@@ -354,7 +354,7 @@ const HSMProxy = function(directory, debug) {
             const signature = bali.binary(await processRequest(peripheral, request, debug));
 
             // update the configuration
-            const state = machine.transitionState('$signBytes');
+            const state = controller.transitionState('$signBytes');
             configuration.setValue('$state', state);
             await storeConfiguration(configurator, configuration, debug);
 
