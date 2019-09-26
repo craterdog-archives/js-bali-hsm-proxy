@@ -92,22 +92,22 @@ describe('Bali Nebula™ HSM Proxy', function() {
                 $tag: tag,
                 $version: bali.version([2, 3]),
                 $digest: bali.component("'JB2NG73VTB957T9TZWT44KRZVQ467KWJ2MSJYT6YW2RQAYQMSR861XGM5ZCDCPNJYR612SJT9RFKHA9YZ5DJMLYC7N3127AY4QDVJ38'")
-            }, bali.parameters({
+            }, {
                 $type: bali.component('/bali/notary/Citation/v1')
-            }));
+            });
             const transaction = bali.catalog({
                 $transactionId: bali.tag(),
                 $timestamp: bali.moment(),
                 $consumer: bali.text('Derk Norton'),
                 $merchant: bali.reference('https://www.starbucks.com/'),
                 $amount: 4.95
-            }, bali.parameters({
+            }, {
                 $type: bali.component('/acme/types/Transaction/v2.3'),
                 $tag: tag,
                 $version: bali.version([2, 4]),
                 $permissions: bali.component('/bali/permissions/public/v1'),
                 $previous: previous
-            }));
+            });
             var document = await notary.notarizeDocument(transaction);
 
             const certificate = notaryCertificate.getValue('$component');
@@ -163,13 +163,12 @@ describe('Bali Nebula™ HSM Proxy', function() {
             var matches = await notary.citationMatches(citation, document);
             expect(matches).to.equal(true);
 
-            const parameters = bali.parameters({
+            document = document.duplicate({
                 $tag: document.getValue('$component').getParameters().getValue('$tag'),
                 $version: 'v2',
                 $permissions: '/bali/permissions/public/v1',
                 $previous: bali.pattern.NONE
             });
-            document = document.duplicate(parameters);
             document = await notary.notarizeDocument(document);
 
             citation = await notary.citeDocument(document);
