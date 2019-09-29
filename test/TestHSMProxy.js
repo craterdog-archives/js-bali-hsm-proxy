@@ -45,8 +45,8 @@ describe('Bali Nebula™ HSM Proxy', function() {
             expect(notary.getAccount().isEqualTo(account)).to.equal(true);
         });
 
-        it('should return the protocols', async function() {
-            const protocols = await notary.getProtocols();
+        it('should return the protocols', function() {
+            const protocols = notary.getProtocols();
             expect(protocols).to.exist;
         });
 

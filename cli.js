@@ -38,11 +38,8 @@ exports.cli = function() {
         document: undefined,
 
         getProtocols: function() {
-            notary.getProtocols().then(function(protocols) {
-                console.log('The protocols include: ' + protocols);
-            }).catch(function(exception) {
-                console.error('Received the following exception: ' + exception);
-            });
+            const protocols = notary.getProtocols();
+            console.log('The protocols include: ' + protocols);
         },
 
         getCitation: function() {
