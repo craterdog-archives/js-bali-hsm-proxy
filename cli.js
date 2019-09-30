@@ -63,7 +63,7 @@ exports.cli = function() {
 
         generateKey: function() {
             notary.generateKey().then(function(publicKey) {
-                notary.notarizeDocument(publicKey).then(function(certificate) {
+                notary.notarizeComponent(publicKey).then(function(certificate) {
                     console.log('The notary certificate is: ' + certificate);
                     this.certificate = certificate;
                     notary.activateKey(certificate).then(function(citation) {
@@ -95,8 +95,8 @@ exports.cli = function() {
             });
         },
 
-        notarizeDocument: function(catalog) {
-            notary.notarizeDocument(catalog).then(function(document) {
+        notarizeComponent: function(catalog) {
+            notary.notarizeComponent(catalog).then(function(document) {
                 console.log('The notarized document is: ' + document);
                 this.document = document;
             }.bind(this)).catch(function(exception) {
