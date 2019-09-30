@@ -46,14 +46,14 @@ const UART_WRITE_ID = '6e400002b5a3f393e0a9e50e24dcca9e';
 const UART_NOTIFICATION_ID = '6e400003b5a3f393e0a9e50e24dcca9e';
 
 // define the finite state machine
-const EVENTS = [  //          possible events
-              '$generateKeys', '$rotateKeys', '$signBytes'
+const REQUESTS = [  //     possible request types
+              '$generateKeys', '$signBytes', '$rotateKeys'
 ];
 const STATES = {
-//   current                 allowed next states
-    $keyless: [ '$loneKey',      undefined,     undefined  ],
-    $loneKey: [  undefined,     '$twoKeys',    '$loneKey'  ],
-    $twoKeys: [  undefined,      undefined,    '$loneKey'  ]
+//   current                allowed next states
+    $keyless: [ '$loneKey',      undefined,    undefined  ],
+    $loneKey: [  undefined,     '$loneKey',   '$twoKeys'  ],
+    $twoKeys: [  undefined,     '$loneKey',    undefined  ]
 };
 
 
@@ -116,7 +116,7 @@ const HSMProxy = function(directory, debug) {
             // load the current configuration if necessary
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
             }
 
             return configuration.getValue('$tag');
@@ -165,7 +165,7 @@ const HSMProxy = function(directory, debug) {
             // check the current state
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
             }
             controller.validateEvent('$generateKeys');
 
@@ -207,7 +207,7 @@ const HSMProxy = function(directory, debug) {
             // check the current state
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
             }
             controller.validateEvent('$rotateKeys');
 
@@ -337,7 +337,7 @@ const HSMProxy = function(directory, debug) {
             // check the current state
             if (!configuration) {
                 configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(EVENTS, STATES, configuration.getValue('$state').toString(), debug);
+                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
             }
             controller.validateEvent('$signBytes');
             if (debug > 2) console.log("\nSigning the bytes...");
@@ -430,6 +430,15 @@ exports.HSMProxy = HSMProxy;
 
 // PRIVATE FUNCTIONS
 
+/**
+ * This function uses a configurator to store out the specified configuration catalog to
+ * the local filesystem.
+ * 
+ * @param {Configurator} configurator A filesystem backed configurator.
+ * @param {Catalog} configuration A catalog containing the current configuration to be stored.
+ * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
+ * the level of debugging that occurs:
+ */
 const storeConfiguration = async function(configurator, configuration, debug) {
     try {
         await configurator.store(configuration.toString() + EOL);
@@ -446,6 +455,15 @@ const storeConfiguration = async function(configurator, configuration, debug) {
 };
 
 
+/**
+ * This function uses a configurator to load the current configuration catalog from
+ * the local filesystem.
+ * 
+ * @param {Configurator} configurator A filesystem backed configurator.
+ * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
+ * the level of debugging that occurs:
+ * @returns {Catalog} A catalog containing the current configuration.
+ */
 const loadConfiguration = async function(configurator, debug) {
     try {
         var configuration;
@@ -473,6 +491,14 @@ const loadConfiguration = async function(configurator, debug) {
 };
 
 
+/**
+ * This function uses a configurator to delete the current configuration catalog from
+ * the local filesystem.
+ * 
+ * @param {Configurator} configurator A filesystem backed configurator.
+ * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
+ * the level of debugging that occurs:
+ */
 const deleteConfiguration = async function(configurator, debug) {
     try {
         await configurator.delete();
