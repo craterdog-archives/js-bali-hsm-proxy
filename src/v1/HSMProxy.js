@@ -171,11 +171,11 @@ const HSMProxy = function(directory, debug) {
 
             // generate a new key pair
             if (debug > 2) console.log("\nGenerating the initial key pair...");
-            const secretKey = bali.binary(crypto.randomBytes(KEY_SIZE));
-            const request = formatRequest('generateKeys', secretKey.getValue());
+            const proxyKey = bali.binary(crypto.randomBytes(KEY_SIZE));
+            const request = formatRequest('generateKeys', proxyKey.getValue());
             if (!peripheral) peripheral = await findPeripheral(debug);
             const publicKey = bali.binary(await processRequest(peripheral, request, debug));
-            configuration.setValue('$secretKey', secretKey);
+            configuration.setValue('$proxyKey', proxyKey);
 
             // update the configuration
             const state = controller.transitionState('$generateKeys');
@@ -211,17 +211,17 @@ const HSMProxy = function(directory, debug) {
             }
             controller.validateEvent('$rotateKeys');
 
-            // save the previous secret key
-            const previousSecretKey = configuration.getValue('$secretKey');
+            // save the previous proxy key
+            const previousSecretKey = configuration.getValue('$proxyKey');
             configuration.setValue('$previousSecretKey', previousSecretKey);
 
             // generate a new key pair
             if (debug > 2) console.log("\nGenerating a new key pair...");
-            const secretKey = bali.binary(crypto.randomBytes(KEY_SIZE));
-            const request = formatRequest('rotateKeys', previousSecretKey.getValue(), secretKey.getValue());
+            const proxyKey = bali.binary(crypto.randomBytes(KEY_SIZE));
+            const request = formatRequest('rotateKeys', previousSecretKey.getValue(), proxyKey.getValue());
             if (!peripheral) peripheral = await findPeripheral(debug);
             const publicKey = bali.binary(await processRequest(peripheral, request, debug));
-            configuration.setValue('$secretKey', secretKey);
+            configuration.setValue('$proxyKey', proxyKey);
 
             // update the configuration
             const state = controller.transitionState('$rotateKeys');
@@ -342,14 +342,14 @@ const HSMProxy = function(directory, debug) {
             controller.validateEvent('$signBytes');
             if (debug > 2) console.log("\nSigning the bytes...");
 
-            // retrieve the secret key
-            var secretKey = configuration.removeValue('$previousSecretKey');
-            if (!secretKey) {
-                secretKey = configuration.getValue('$secretKey');
+            // retrieve the proxy key
+            var proxyKey = configuration.removeValue('$previousSecretKey');
+            if (!proxyKey) {
+                proxyKey = configuration.getValue('$proxyKey');
             }
 
             // digitally sign the bytes using the private key
-            const request = formatRequest('signBytes', secretKey.getValue(), bytes);
+            const request = formatRequest('signBytes', proxyKey.getValue(), bytes);
             if (!peripheral) peripheral = await findPeripheral(debug);
             const signature = bali.binary(await processRequest(peripheral, request, debug));
 
