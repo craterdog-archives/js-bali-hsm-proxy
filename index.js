@@ -25,6 +25,6 @@
  * @returns {Object} An object that implements the API for a remote hardware security module.
  */
 exports.proxy = function(directory, debug) {
-    const proxy = new require('./src/v1/HSMProxy').HSMProxy(directory, debug);
+    const proxy = new require('./src/v2/HSMProxy').HSMProxy(directory, debug);
     return proxy;
 };

@@ -32,7 +32,7 @@ const bali = require('bali-component-framework').api();
 const EOL = '\n';
 
 // the algorithms for this version of the protocol
-const PROTOCOL = 'v1';
+const PROTOCOL = 'v2';
 const DIGEST = 'sha512';
 const SIGNATURE = 'ed25519';
 
@@ -122,7 +122,7 @@ const HSMProxy = function(directory, debug) {
             return configuration.getValue('$tag');
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$getTag',
                 $exception: '$unexpected',
                 $text: 'The tag for the security module could not be retrieved.'
@@ -145,7 +145,7 @@ const HSMProxy = function(directory, debug) {
             return bali.component(PROTOCOL);
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$getProtocol',
                 $exception: '$unexpected',
                 $text: 'The protocol supported by the security module could not be retrieved.'
@@ -187,7 +187,7 @@ const HSMProxy = function(directory, debug) {
         } catch (cause) {
             peripheral = undefined;
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$generateKeys',
                 $exception: '$unexpected',
                 $text: 'A new key pair could not be generated.'
@@ -233,7 +233,7 @@ const HSMProxy = function(directory, debug) {
         } catch (cause) {
             peripheral = undefined;
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$rotateKeys',
                 $exception: '$unexpected',
                 $text: 'The key pair could not be rotated.'
@@ -265,7 +265,7 @@ const HSMProxy = function(directory, debug) {
         } catch (cause) {
             peripheral = undefined;
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$eraseKeys',
                 $exception: '$unexpected',
                 $text: 'The keys could not be erased.'
@@ -304,7 +304,7 @@ const HSMProxy = function(directory, debug) {
         } catch (cause) {
             peripheral = undefined;
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$digestBytes',
                 $exception: '$unexpected',
                 $text: 'A digest of the bytes could not be generated.'
@@ -363,7 +363,7 @@ const HSMProxy = function(directory, debug) {
         } catch (cause) {
             peripheral = undefined;
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$signBytes',
                 $exception: '$unexpected',
                 $text: 'A digital signature of the bytes could not be generated.'
@@ -412,7 +412,7 @@ const HSMProxy = function(directory, debug) {
         } catch (cause) {
             peripheral = undefined;
             const exception = bali.exception({
-                $module: '/bali/notary/v1/HSMProxy',
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$validSignature',
                 $exception: '$unexpected',
                 $text: 'The digital signature of the bytes could not be validated.'

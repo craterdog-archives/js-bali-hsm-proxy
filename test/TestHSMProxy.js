@@ -69,7 +69,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Certificate Validation', function() {
 
         it('should validate the certificate', async function() {
-            expect(notaryCertificate.getValue('$protocol').toString()).to.equal('v1');
+            expect(notaryCertificate.getValue('$protocol').toString()).to.equal('v2');
             const certificate = notaryCertificate.getValue('$component');
             var isValid = await notary.validDocument(notaryCertificate, certificate);
             expect(isValid).to.equal(true);
