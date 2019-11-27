@@ -525,6 +525,81 @@ const formatRequest = function(type, ...args) {
 
 
 /**
+ * This function sends a request to a BLEUart service for processing. The response is
+ * returned from the service.  The function is asynchronous and returns a promise to
+ * attempt to process the request.
+ * 
+ * Note: A BLEUart service can only handle requests up to 512 bytes in length. If the
+ * specified request is longer than this limit, it is broken up into separate 512 byte
+ * blocks and each block is sent as a separate BLE request.
+ * 
+ * @param {Buffer} request The request to be processed.
+ * @param {Boolean} debug An optional flag that determines whether or not exceptions
+ * will be logged to the error console.
+ * @returns {Promise} A promise to return the response from the service.
+ */
+const processRequest = async function(request, debug) {
+    var tryAgain = 3;  // retry twice
+    while (tryAgain--) {
+        var peripheral;
+        try {
+            peripheral = await findPeripheral(debug);
+            await connect(peripheral, debug);
+            const service = await discoverService(peripheral, debug);
+            const characteristics = await retrieveCharacteristics(service, debug);
+            var input, output;
+            characteristics.forEach (characteristic => {
+                // TODO: make it more robust by checking properties instead of Ids
+                if (characteristic.uuid === UART_NOTIFICATION_ID) input = characteristic;
+                if (characteristic.uuid === UART_WRITE_ID) output = characteristic;
+            });
+            if (input && output) {
+                if (debug > 2) console.log('Sending the request to the HSM...');
+                // process any extra blocks in reverse order
+                var buffer, offset, blockSize;
+                var block = Math.ceil((request.length - 2) / BLOCK_SIZE) - 1;
+                while (block > 0) {
+                    // the offset includes the header bytes
+                    offset = block * BLOCK_SIZE + 2;
+            
+                    // calculate the current block size
+                    blockSize = Math.min(request.length - offset, BLOCK_SIZE);
+            
+                    // copy the request block into the buffer
+                    buffer = request.slice(offset, offset + blockSize);
+            
+                    // prepend the header to the buffer
+                    buffer = Buffer.concat([Buffer.from([0x00, block & 0xFF]), buffer], blockSize + 2);
+    
+                    await processBlock(input, output, buffer, debug);
+                    if (debug > 2) console.log('A block was successfully sent to the HSM.');
+                    block--;
+                }
+
+                // process the actual request
+                blockSize = Math.min(request.length, BLOCK_SIZE + 2);
+                buffer = request.slice(0, blockSize);
+                const response = await processBlock(input, output, buffer, debug);
+                if (debug > 2) console.log('A response was received from the HSM.');
+                await disconnect(peripheral, debug);
+                return response;
+            } else {
+                await disconnect(peripheral, debug);
+                throw Error("The UART service doesn't support the right characteristics.");
+            }
+        } catch (cause) {
+            if (tryAgain) {
+                if (debug > 0) console.error('Request failed, trying again: ' + cause);
+                if (peripheral) await disconnect(peripheral, debug);
+                continue;
+            }
+            throw Error('Request failed too many times: ' + cause);
+        }
+    }
+};
+
+
+/**
  * This function searches for a bluetooth peripheral that implements the hardware security
  * module (HSM). Once one is found it stops searching. The function is asynchronous and
  * returns a promise to attempt to find the peripheral.
@@ -543,47 +618,12 @@ const findPeripheral = function(debug) {
                 resolve(peripheral);
             }
         });
-        /*
         setTimeout(function() {
             bluetooth.stopScanning();
             reject('No ArmorD™ found.');
         }, 1000);
-        */
         if (debug > 2) console.log('Searching for an ArmorD™...');
         bluetooth.startScanning([UART_SERVICE_ID]);  // start searching (asynchronously)
-    });
-};
-
-
-/**
- * This function writes a block of bytes to the input characteristic of a BLEUart service
- * and reads the response from the output characteristic.  The function is asynchronous and
- * returns a promise to attempt to process the block of bytes.
- * 
- * @param {Characteristic} input The input characteristic for the BLEUart service.
- * @param {Characteristic} output The output characteristic for the BLEUart service.
- * @param {Buffer} block The block of bytes to be written.
- * @param {Boolean} debug An optional flag that determines whether or not exceptions
- * will be logged to the error console.
- * @returns {Promise} A promise to return a buffer containing the bytes for the response from
- * the service.
- */
-const processBlock = function(input, output, block, debug) {
-    return new Promise(function(resolve, reject) {
-        input.once('read', function(response, isNotification) {  // isNotification should always be true
-            if (debug > 2) console.log('Read completed, ' + response.length + ' bytes read.');
-            if (response.length === 1 && response.readUInt8(0) > 1) {
-                if (debug > 2) console.log("response: " + response.readUInt8(0));
-                reject('Processing of the block failed.');
-            }
-            resolve(response);
-        });
-        input.subscribe(function() {
-            output.write(block, false, function() {
-                if (debug > 2) console.log('Write completed, ' + block.length + ' bytes written.');
-                // can't resolve it until the response is read
-            });
-        });
     });
 };
 
@@ -593,7 +633,7 @@ const connect = function(peripheral, debug) {
         if (debug > 2) console.log('Attempting to connect to the HSM...');
         peripheral.connect(function(cause) {
             if (cause) {
-                if (debug > 0) console.log('Failed to connect: ' + cause);
+                if (debug > 0) console.error('Failed to connect: ' + cause);
                 reject(cause);
             } else {
                 if (debug > 2) console.log('Successfully connected.');
@@ -644,75 +684,35 @@ const retrieveCharacteristics = function(service, debug) {
 };
 
 
-
 /**
- * This function sends a request to a BLEUart service for processing. The response is
- * returned from the service.  The function is asynchronous and returns a promise to
- * attempt to process the request.
+ * This function writes a block of bytes to the input characteristic of a BLEUart service
+ * and reads the response from the output characteristic.  The function is asynchronous and
+ * returns a promise to attempt to process the block of bytes.
  * 
- * Note: A BLEUart service can only handle requests up to 512 bytes in length. If the
- * specified request is longer than this limit, it is broken up into separate 512 byte
- * blocks and each block is sent as a separate BLE request.
- * 
- * @param {Buffer} request The request to be processed.
+ * @param {Characteristic} input The input characteristic for the BLEUart service.
+ * @param {Characteristic} output The output characteristic for the BLEUart service.
+ * @param {Buffer} block The block of bytes to be written.
  * @param {Boolean} debug An optional flag that determines whether or not exceptions
  * will be logged to the error console.
- * @returns {Promise} A promise to return the response from the service.
+ * @returns {Promise} A promise to return a buffer containing the bytes for the response from
+ * the service.
  */
-const processRequest = async function(request, debug) {
-    var tryAgain = 3;  // retry twice
-    while (tryAgain--) {
-        try {
-            const peripheral = await findPeripheral(debug);
-            await connect(peripheral, debug);
-            const service = await discoverService(peripheral, debug);
-            const characteristics = await retrieveCharacteristics(service, debug);
-            var input, output;
-            characteristics.forEach (characteristic => {
-                // TODO: make it more robust by checking properties instead of Ids
-                if (characteristic.uuid === UART_NOTIFICATION_ID) input = characteristic;
-                if (characteristic.uuid === UART_WRITE_ID) output = characteristic;
+const processBlock = function(input, output, block, debug) {
+    return new Promise(function(resolve, reject) {
+        input.once('read', function(response, isNotification) {  // isNotification should always be true
+            if (debug > 2) console.log('Read completed, ' + response.length + ' bytes read.');
+            if (response.length === 1 && response.readUInt8(0) > 1) {
+                if (debug > 2) console.log("response: " + response.readUInt8(0));
+                reject('Processing of the block failed.');
+            }
+            resolve(response);
+        });
+        input.subscribe(function() {
+            output.write(block, false, function() {
+                if (debug > 2) console.log('Write completed, ' + block.length + ' bytes written.');
+                // can't resolve it until the response is read
             });
-            if (input && output) {
-                if (debug > 2) console.log('Sending the request to the HSM...');
-                // process any extra blocks in reverse order
-                var buffer, offset, blockSize;
-                var block = Math.ceil((request.length - 2) / BLOCK_SIZE) - 1;
-                while (block > 0) {
-                    // the offset includes the header bytes
-                    offset = block * BLOCK_SIZE + 2;
-            
-                    // calculate the current block size
-                    blockSize = Math.min(request.length - offset, BLOCK_SIZE);
-            
-                    // copy the request block into the buffer
-                    buffer = request.slice(offset, offset + blockSize);
-            
-                    // prepend the header to the buffer
-                    buffer = Buffer.concat([Buffer.from([0x00, block & 0xFF]), buffer], blockSize + 2);
-    
-                    await processBlock(input, output, buffer, debug);
-                    if (debug > 2) console.log('A block was successfully sent to the HSM.');
-                    block--;
-                }
-
-                // process the actual request
-                blockSize = Math.min(request.length, BLOCK_SIZE + 2);
-                buffer = request.slice(0, blockSize);
-                const response = await processBlock(input, output, buffer, debug);
-                if (debug > 2) console.log('A response was received from the HSM.');
-                await disconnect(peripheral, debug);
-                return response;
-            } else {
-                await disconnect(peripheral, debug);
-                throw Error("The UART service doesn't support the right characteristics.");
-            }
-        } catch (cause) {
-            if (tryAgain) {
-                if (debug > 2) console.log('Request failed, trying again...');
-                continue;
-            }
-            throw Error('Request failed too many times: ' + cause);
-        }
-    }
+        });
+    });
 };
+
