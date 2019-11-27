@@ -472,7 +472,7 @@ exports.HSMProxy = HSMProxy;
 /**
  * This function formats a request into a binary format prior to sending it via bluetooth.
  * Each request has the following byte format:
- *   Request (1 byte) [0..255]
+ *   Request Type (1 byte) [0..255]
  *   Number of Arguments (1 byte) [0..255]
  *   Length of Argument 1 (2 bytes) [0..65535]
  *   Argument 1 ([0..65535] bytes)
@@ -482,9 +482,6 @@ exports.HSMProxy = HSMProxy;
  *   Length of Argument N (2 bytes) [0..65535]
  *   Argument N ([0..65535] bytes)
  *
- * If the entire request is only a single byte long then the number of arguments
- * is assumed to be zero.
-
  * @param {String} type The type of the request.
  * @param {Buffer} args Zero or more buffers containing the bytes for each argument.
  * @returns {Buffer} A buffer containing the bytes for the entire request.
@@ -548,7 +545,7 @@ const processRequest = async function(request, debug) {
             const service = await discoverService(peripheral, debug);
             const characteristics = await retrieveCharacteristics(service, debug);
             var input, output;
-            characteristics.forEach (characteristic => {
+            characteristics.forEach (function(characteristic) {
                 // TODO: make it more robust by checking properties instead of Ids
                 if (characteristic.uuid === UART_NOTIFICATION_ID) input = characteristic;
                 if (characteristic.uuid === UART_WRITE_ID) output = characteristic;
@@ -610,7 +607,7 @@ const processRequest = async function(request, debug) {
  */
 const findPeripheral = function(debug) {
     return new Promise(function(resolve, reject) {
-        bluetooth.on('discover', function(peripheral) {
+        bluetooth.once('discover', function(peripheral) {
             const advertisement = peripheral.advertisement;
             if (debug > 2) console.log('Found ' + advertisement.localName + '.');
             if (advertisement.localName === 'ArmorD') {
