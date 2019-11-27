@@ -75,6 +75,7 @@ const STATES = {
  * @returns {Object} The new hardware security module proxy.
  */
 const HSMProxy = function(directory, debug) {
+
     // validate the arguments
     if (debug === null || debug === undefined) debug = 0;  // default is off
     if (debug > 1) {
@@ -85,10 +86,72 @@ const HSMProxy = function(directory, debug) {
         ]);
     }
 
-    // setup the configuration
+
+    // PRIVATE CONFIGURATION ATTRIBUTES AND METHODS
+
     const filename = 'HSMProxy' + PROTOCOL + '.bali';
     const configurator = bali.configurator(filename, directory, debug);
-    var configuration, controller, peripheral;
+    var configuration, controller;
+
+    const loadConfiguration = async function() {
+        try {
+            const source = await configurator.load();
+            if (source) {
+                configuration = bali.component(source);
+            } else {
+                configuration = bali.catalog({
+                    $tag: bali.tag(),  // new random tag
+                    $state: '$keyless'
+                });
+                await configurator.store(configuration.toString() + EOL);
+            }
+            controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
+        } catch (cause) {
+            const exception = bali.exception({
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $procedure: '$loadConfiguration',
+                $exception: '$storageException',
+                $text: 'The attempt to load the current configuration failed.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    const storeConfiguration = async function() {
+        try {
+            await configurator.store(configuration.toString() + EOL);
+        } catch (cause) {
+            const exception = bali.exception({
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $procedure: '$storeConfiguration',
+                $exception: '$storageException',
+                $text: 'The attempt to store the current configuration failed.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+    const deleteConfiguration = async function() {
+        try {
+            await configurator.delete();
+            configuration = undefined;
+            controller = undefined;
+        } catch (cause) {
+            const exception = bali.exception({
+                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $procedure: '$deleteConfiguration',
+                $exception: '$storageException',
+                $text: 'The attempt to delete the current configuration failed.'
+            }, cause);
+            if (debug > 0) console.error(exception.toString());
+            throw exception;
+        }
+    };
+
+
+    // PUBLIC METHODS
 
     /**
      * This method returns a string describing the attributes of the HSM. It must not be an
@@ -114,10 +177,7 @@ const HSMProxy = function(directory, debug) {
     this.getTag = async function() {
         try {
             // load the current configuration if necessary
-            if (!configuration) {
-                configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
-            }
+            if (!configuration) await loadConfiguration();
 
             return configuration.getValue('$tag');
         } catch (cause) {
@@ -163,18 +223,14 @@ const HSMProxy = function(directory, debug) {
     this.generateKeys = async function() {
         try {
             // check the current state
-            if (!configuration) {
-                configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
-            }
+            if (!configuration) await loadConfiguration();
             controller.validateEvent('$generateKeys');
 
             // generate a new key pair
             if (debug > 2) console.log("\nGenerating the initial key pair...");
             const proxyKey = bali.binary(crypto.randomBytes(KEY_SIZE));
             const request = formatRequest('generateKeys', proxyKey.getValue());
-            if (!peripheral) peripheral = await findPeripheral(debug);
-            const publicKey = bali.binary(await processRequest(peripheral, request, debug));
+            const publicKey = bali.binary(await processRequest(request, debug));
             configuration.setValue('$proxyKey', proxyKey);
 
             // update the configuration
@@ -185,7 +241,6 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log('public key: ' + publicKey);
             return publicKey;
         } catch (cause) {
-            peripheral = undefined;
             const exception = bali.exception({
                 $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$generateKeys',
@@ -205,10 +260,7 @@ const HSMProxy = function(directory, debug) {
     this.rotateKeys = async function() {
         try {
             // check the current state
-            if (!configuration) {
-                configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
-            }
+            if (!configuration) await loadConfiguration();
             controller.validateEvent('$rotateKeys');
 
             // save the previous proxy key
@@ -219,8 +271,7 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log("\nGenerating a new key pair...");
             const proxyKey = bali.binary(crypto.randomBytes(KEY_SIZE));
             const request = formatRequest('rotateKeys', previousProxyKey.getValue(), proxyKey.getValue());
-            if (!peripheral) peripheral = await findPeripheral(debug);
-            const publicKey = bali.binary(await processRequest(peripheral, request, debug));
+            const publicKey = bali.binary(await processRequest(request, debug));
             configuration.setValue('$proxyKey', proxyKey);
 
             // update the configuration
@@ -231,7 +282,6 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log('public key: ' + publicKey);
             return publicKey;
         } catch (cause) {
-            peripheral = undefined;
             const exception = bali.exception({
                 $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$rotateKeys',
@@ -253,8 +303,7 @@ const HSMProxy = function(directory, debug) {
             // erase the keys on the remote hardware security module
             if (debug > 2) console.log("\nErasing all key pairs...");
             const request = formatRequest('eraseKeys');
-            if (!peripheral) peripheral = await findPeripheral(debug);
-            const succeeded = (await processRequest(peripheral, request, debug))[0] ? true : false;
+            const succeeded = (await processRequest(request, debug))[0] ? true : false;
 
             // delete the current configuration
             await deleteConfiguration(configurator, debug);
@@ -263,7 +312,6 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log("succeeded: " + succeeded);
             return succeeded;
         } catch (cause) {
-            peripheral = undefined;
             const exception = bali.exception({
                 $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$eraseKeys',
@@ -296,13 +344,11 @@ const HSMProxy = function(directory, debug) {
             // generate the digital digest of the bytes
             if (debug > 2) console.log("\nDigesting the bytes...");
             const request = formatRequest('digestBytes', bytes);
-            if (!peripheral) peripheral = await findPeripheral(debug);
-            const digest = bali.binary(await processRequest(peripheral, request, debug));
+            const digest = bali.binary(await processRequest(request, debug));
 
             if (debug > 2) console.log('digest: ' + digest);
             return digest;
         } catch (cause) {
-            peripheral = undefined;
             const exception = bali.exception({
                 $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$digestBytes',
@@ -335,10 +381,7 @@ const HSMProxy = function(directory, debug) {
             }
 
             // check the current state
-            if (!configuration) {
-                configuration = await loadConfiguration(configurator, debug);
-                controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
-            }
+            if (!configuration) await loadConfiguration();
             controller.validateEvent('$signBytes');
             if (debug > 2) console.log("\nSigning the bytes...");
 
@@ -350,8 +393,7 @@ const HSMProxy = function(directory, debug) {
 
             // digitally sign the bytes using the private key
             const request = formatRequest('signBytes', proxyKey.getValue(), bytes);
-            if (!peripheral) peripheral = await findPeripheral(debug);
-            const signature = bali.binary(await processRequest(peripheral, request, debug));
+            const signature = bali.binary(await processRequest(request, debug));
 
             // update the configuration
             const state = controller.transitionState('$signBytes');
@@ -361,7 +403,6 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log('signature: ' + signature);
             return signature;
         } catch (cause) {
-            peripheral = undefined;
             const exception = bali.exception({
                 $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$signBytes',
@@ -404,13 +445,11 @@ const HSMProxy = function(directory, debug) {
             // check the signature on the bytes
             if (debug > 2) console.log("\nValidating the signature...");
             const request = formatRequest('validSignature', aPublicKey.getValue(), signature.getValue(), bytes);
-            if (!peripheral) peripheral = await findPeripheral(debug);
-            const isValid = (await processRequest(peripheral, request, debug))[0] ? true : false;
+            const isValid = (await processRequest(request, debug))[0] ? true : false;
 
             if (debug > 2) console.log("is valid: " + isValid);
             return isValid;
         } catch (cause) {
-            peripheral = undefined;
             const exception = bali.exception({
                 $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
                 $procedure: '$validSignature',
@@ -429,91 +468,6 @@ exports.HSMProxy = HSMProxy;
 
 
 // PRIVATE FUNCTIONS
-
-/**
- * This function uses a configurator to store out the specified configuration catalog to
- * the local filesystem.
- * 
- * @param {Configurator} configurator A filesystem backed configurator.
- * @param {Catalog} configuration A catalog containing the current configuration to be stored.
- * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
- * the level of debugging that occurs:
- */
-const storeConfiguration = async function(configurator, configuration, debug) {
-    try {
-        await configurator.store(configuration.toString() + EOL);
-    } catch (cause) {
-        const exception = bali.exception({
-            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
-            $procedure: '$storeConfiguration',
-            $exception: '$storageException',
-            $text: 'The attempt to store the current configuration failed.'
-        }, cause);
-        if (debug > 0) console.error(exception.toString());
-        throw exception;
-    }
-};
-
-
-/**
- * This function uses a configurator to load the current configuration catalog from
- * the local filesystem.
- * 
- * @param {Configurator} configurator A filesystem backed configurator.
- * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
- * the level of debugging that occurs:
- * @returns {Catalog} A catalog containing the current configuration.
- */
-const loadConfiguration = async function(configurator, debug) {
-    try {
-        var configuration;
-        const source = await configurator.load();
-        if (source) {
-            configuration = bali.component(source);
-        } else {
-            configuration = bali.catalog({
-                $tag: bali.tag(),  // new random tag
-                $state: '$keyless'
-            });
-            await configurator.store(configuration.toString() + EOL);
-        }
-        return configuration;
-    } catch (cause) {
-        const exception = bali.exception({
-            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
-            $procedure: '$loadConfiguration',
-            $exception: '$storageException',
-            $text: 'The attempt to load the current configuration failed.'
-        }, cause);
-        if (debug > 0) console.error(exception.toString());
-        throw exception;
-    }
-};
-
-
-/**
- * This function uses a configurator to delete the current configuration catalog from
- * the local filesystem.
- * 
- * @param {Configurator} configurator A filesystem backed configurator.
- * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
- * the level of debugging that occurs:
- */
-const deleteConfiguration = async function(configurator, debug) {
-    try {
-        await configurator.delete();
-    } catch (cause) {
-        const exception = bali.exception({
-            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
-            $procedure: '$deleteConfiguration',
-            $exception: '$storageException',
-            $text: 'The attempt to delete the current configuration failed.'
-        }, cause);
-        if (debug > 0) console.error(exception.toString());
-        throw exception;
-    }
-};
-
 
 /**
  * This function formats a request into a binary format prior to sending it via bluetooth.
@@ -589,8 +543,14 @@ const findPeripheral = function(debug) {
                 resolve(peripheral);
             }
         });
-        if (debug > 2) console.log('Searching for an HSM...');
-        bluetooth.startScanning([UART_SERVICE_ID]);  // start searching for an HSM (asynchronously)
+        /*
+        setTimeout(function() {
+            bluetooth.stopScanning();
+            reject('No ArmorD™ found.');
+        }, 1000);
+        */
+        if (debug > 2) console.log('Searching for an ArmorD™...');
+        bluetooth.startScanning([UART_SERVICE_ID]);  // start searching (asynchronously)
     });
 };
 
@@ -628,6 +588,63 @@ const processBlock = function(input, output, block, debug) {
 };
 
 
+const connect = function(peripheral, debug) {
+    return new Promise(function(resolve, reject) {
+        if (debug > 2) console.log('Attempting to connect to the HSM...');
+        peripheral.connect(function(cause) {
+            if (cause) {
+                if (debug > 0) console.log('Failed to connect: ' + cause);
+                reject(cause);
+            } else {
+                if (debug > 2) console.log('Successfully connected.');
+                resolve();
+            }
+        });
+    });
+};
+
+
+const disconnect = function(peripheral, debug) {
+    return new Promise(function(resolve, reject) {
+        if (debug > 2) console.log('Attempting to disconnect from the HSM...');
+        peripheral.disconnect(function() {
+            if (debug > 2) console.log('Disconnected from the HSM.');
+            resolve();
+        });
+    });
+};
+
+
+const discoverService = function(peripheral, debug) {
+    return new Promise(function(resolve, reject) {
+        if (debug > 2) console.log('Attempting to discover the UART service...');
+        peripheral.discoverServices([UART_SERVICE_ID], function(cause, services) {
+            if (cause || services.length !== 1) {
+                cause = cause || Error('Wrong number of UART services found: ' + services.length);
+                reject(cause);
+            } else {
+                resolve(services[0]);
+            }
+        });
+    });
+};
+
+
+const retrieveCharacteristics = function(service, debug) {
+    return new Promise(function(resolve, reject) {
+        if (debug > 2) console.log('Attempting to retrieve the UART characteristics...');
+        service.discoverCharacteristics([], function(cause, characteristics) {
+            if (cause) {
+                reject(cause);
+            } else {
+                resolve(characteristics);
+            }
+        });
+    });
+};
+
+
+
 /**
  * This function sends a request to a BLEUart service for processing. The response is
  * returned from the service.  The function is asynchronous and returns a promise to
@@ -637,119 +654,65 @@ const processBlock = function(input, output, block, debug) {
  * specified request is longer than this limit, it is broken up into separate 512 byte
  * blocks and each block is sent as a separate BLE request.
  * 
- * @param {Peripheral} peripheral The remote peripheral to do the processing.
  * @param {Buffer} request The request to be processed.
  * @param {Boolean} debug An optional flag that determines whether or not exceptions
  * will be logged to the error console.
  * @returns {Promise} A promise to return the response from the service.
  */
-const processRequest = function(peripheral, request, debug) {
-    return new Promise(function(resolve, reject) {
-        if (peripheral) {
-            if (debug > 2) console.log('Attempting to connect to the HSM...');
-            peripheral.connect(function(cause) {
-                if (!cause) {
-                    if (debug > 2) console.log('Successfully connected.');
-                    peripheral.discoverServices([UART_SERVICE_ID], function(cause, services) {
-                        if (!cause && services.length === 1) {
-                            services[0].discoverCharacteristics([], async function(cause, characteristics) {
-                                if (!cause) {
-                                    var input, output;
-                                    characteristics.forEach (characteristic => {
-                                        // TODO: make it more robust by checking properties instead of Ids
-                                        if (characteristic.uuid === UART_NOTIFICATION_ID) input = characteristic;
-                                        if (characteristic.uuid === UART_WRITE_ID) output = characteristic;
-                                    });
-                                    if (input && output) {
-                                        if (debug > 2) console.log('Sending the request to the HSM...');
-                                        // process any extra blocks in reverse order
-                                        var buffer, offset, blockSize;
-                                        var extraBlocks = Math.ceil((request.length - 2) / BLOCK_SIZE) - 1;
-                                        var block = extraBlocks;
-                                        while (block > 0) {
-                                            // the offset includes the header bytes
-                                            offset = block * BLOCK_SIZE + 2;
-                                    
-                                            // calculate the current block size
-                                            blockSize = Math.min(request.length - offset, BLOCK_SIZE);
-                                    
-                                            // copy the request block into the buffer
-                                            buffer = request.slice(offset, offset + blockSize);
-                                    
-                                            // prepend the header to the buffer
-                                            buffer = Buffer.concat([Buffer.from([0x00, block & 0xFF]), buffer], blockSize + 2);
-                                    
-                                            // process the extended request buffer
-                                            var tryAgain = 3;  // retry twice
-                                            while (tryAgain--) {
-                                                try {
-                                                    await processBlock(input, output, buffer, debug);
-                                                    if (debug > 2) console.log('A block was successfully sent to the HSM.');
-                                                    break;
-                                                } catch (cause) {
-                                                    if (tryAgain) {
-                                                        if (debug > 2) console.log('Request failed, trying again...');
-                                                        continue;
-                                                    }
-                                                    reject(cause);
-                                                }
-                                            }
-
-                                            block--;
-                                        }
-                                    
-                                        // process the actual request
-                                        blockSize = Math.min(request.length, BLOCK_SIZE + 2);
-                                        buffer = request.slice(0, blockSize);
-                                        try {
-                                            var tryAgain = 3;  // retry twice
-                                            while (tryAgain--) {
-                                                try {
-                                                    const response = await processBlock(input, output, buffer, debug);
-                                                    if (debug > 2) console.log('A response was received from the HSM.');
-                                                    peripheral.disconnect(function() {
-                                                        if (debug > 2) console.log('Disconnected from the HSM.');
-                                                        resolve(response);
-                                                    });
-                                                    break;
-                                                } catch (cause) {
-                                                    if (tryAgain) continue;
-                                                    reject(cause);
-                                                }
-                                            }
-                                        } catch (cause) {
-                                            reject(cause);
-                                        }
-                                    } else {
-                                        peripheral.disconnect(function() {
-                                            if (debug > 2) console.log('Disconnected from the HSM.');
-                                            reject("The UART service doesn't support the right characteristics.");
-                                        });
-                                    }
-                                } else {
-                                    peripheral.disconnect(function() {
-                                        if (debug > 2) console.log('Disconnected from the HSM.');
-                                        reject(cause);
-                                    });
-                                }
-                            });
-                        } else {
-                            cause = cause || Error('Wrong number of UART services found.');
-                            peripheral.disconnect(function() {
-                                if (debug > 2) console.log('Disconnected from the HSM.');
-                                reject(cause);
-                            });
-                        }
-                    });
-                } else {
-                    peripheral.disconnect(function() {
-                        if (debug > 2) console.log('Disconnected from the HSM.');
-                        reject(cause);
-                    });
-                }
+const processRequest = async function(request, debug) {
+    var tryAgain = 3;  // retry twice
+    while (tryAgain--) {
+        try {
+            const peripheral = await findPeripheral(debug);
+            await connect(peripheral, debug);
+            const service = await discoverService(peripheral, debug);
+            const characteristics = await retrieveCharacteristics(service, debug);
+            var input, output;
+            characteristics.forEach (characteristic => {
+                // TODO: make it more robust by checking properties instead of Ids
+                if (characteristic.uuid === UART_NOTIFICATION_ID) input = characteristic;
+                if (characteristic.uuid === UART_WRITE_ID) output = characteristic;
             });
-        } else {
-            reject('No HSM is near by.');
+            if (input && output) {
+                if (debug > 2) console.log('Sending the request to the HSM...');
+                // process any extra blocks in reverse order
+                var buffer, offset, blockSize;
+                var block = Math.ceil((request.length - 2) / BLOCK_SIZE) - 1;
+                while (block > 0) {
+                    // the offset includes the header bytes
+                    offset = block * BLOCK_SIZE + 2;
+            
+                    // calculate the current block size
+                    blockSize = Math.min(request.length - offset, BLOCK_SIZE);
+            
+                    // copy the request block into the buffer
+                    buffer = request.slice(offset, offset + blockSize);
+            
+                    // prepend the header to the buffer
+                    buffer = Buffer.concat([Buffer.from([0x00, block & 0xFF]), buffer], blockSize + 2);
+    
+                    await processBlock(input, output, buffer, debug);
+                    if (debug > 2) console.log('A block was successfully sent to the HSM.');
+                    block--;
+                }
+
+                // process the actual request
+                blockSize = Math.min(request.length, BLOCK_SIZE + 2);
+                buffer = request.slice(0, blockSize);
+                const response = await processBlock(input, output, buffer, debug);
+                if (debug > 2) console.log('A response was received from the HSM.');
+                await disconnect(peripheral, debug);
+                return response;
+            } else {
+                await disconnect(peripheral, debug);
+                throw Error("The UART service doesn't support the right characteristics.");
+            }
+        } catch (cause) {
+            if (tryAgain) {
+                if (debug > 2) console.log('Request failed, trying again...');
+                continue;
+            }
+            throw Error('Request failed too many times: ' + cause);
         }
-    });
+    }
 };

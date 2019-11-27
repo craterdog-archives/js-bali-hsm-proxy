@@ -1,7 +1,6 @@
 'use strict';
 
 const path = require('path');
-const childProcess = require('child_process');
 
 // wrapper function for grunt configuration
 module.exports = function(grunt) {
@@ -38,7 +37,7 @@ module.exports = function(grunt) {
       test: {
         options: {
           reporter: 'spec',
-          timeout: 60000 
+          timeout: 90000 
         },
         src: [
           'test/**/*.js'
