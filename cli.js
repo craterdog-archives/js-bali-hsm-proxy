@@ -105,7 +105,7 @@ exports.cli = function() {
         },
 
         validDocument: function(document) {
-            const certificate = this.certificate.getValue('$document');
+            const certificate = this.certificate.getValue('$content');
             notary.validDocument(document, certificate).then(function(isValid) {
                 console.log('The document is ' + (isValid ? '' : 'not ') + 'valid');
             }).catch(function(exception) {
@@ -114,7 +114,7 @@ exports.cli = function() {
         },
 
         citeDocument: function(document) {
-            const certificate = this.certificate.getValue('$document');
+            const certificate = this.certificate.getValue('$content');
             notary.citeDocument(document).then(function(citation) {
                 console.log('The document citation is: ' + citation);
                 this.citation = citation;

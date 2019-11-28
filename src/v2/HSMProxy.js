@@ -617,9 +617,9 @@ const findPeripheral = function(debug) {
         });
         setTimeout(function() {
             bluetooth.stopScanning();
-            reject('No ArmorD™ found.');
+            reject('No HSM found.');
         }, 1000);
-        if (debug > 2) console.log('Searching for an ArmorD™...');
+        if (debug > 2) console.log('Searching for an HSM...');
         bluetooth.startScanning([UART_SERVICE_ID]);  // start searching (asynchronously)
     });
 };

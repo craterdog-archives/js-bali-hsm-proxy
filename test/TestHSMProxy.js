@@ -8,7 +8,7 @@
  * Source Initiative. (See http://opensource.org/licenses/MIT)          *
  ************************************************************************/
 
-const debug = 0;  // debug level [0..3]
+const debug = 3;  // debug level [0..3]
 const crypto = require('crypto');
 const mocha = require('mocha');
 const assert = require('chai').assert;
@@ -70,7 +70,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
 
         it('should validate the certificate', async function() {
             expect(notaryCertificate.getValue('$protocol').toString()).to.equal('v2');
-            const certificate = notaryCertificate.getValue('$document');
+            const certificate = notaryCertificate.getValue('$content');
             var isValid = await notary.validDocument(notaryCertificate, certificate);
             expect(isValid).to.equal(true);
         });
@@ -110,7 +110,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
             });
             var document = await notary.notarizeDocument(transaction);
 
-            const certificate = notaryCertificate.getValue('$document');
+            const certificate = notaryCertificate.getValue('$content');
 
             var citation = await notary.citeDocument(document);
             var isValid = await notary.validDocument(document, certificate);
@@ -127,8 +127,8 @@ describe('Bali Nebula™ HSM Proxy', function() {
             var newNotaryCertificate = await notary.refreshKey();
             expect(newNotaryCertificate).to.exist;
 
-            const certificate = notaryCertificate.getValue('$document');
-            const newCertificate = newNotaryCertificate.getValue('$document');
+            const certificate = notaryCertificate.getValue('$content');
+            const newCertificate = newNotaryCertificate.getValue('$content');
 
             var isValid = await notary.validDocument(newNotaryCertificate, certificate);
             expect(isValid).to.equal(true);
@@ -155,7 +155,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
         it('should notarized a component twice properly', async function() {
             var document = await notary.notarizeDocument(component);
 
-            const certificate = notaryCertificate.getValue('$document');
+            const certificate = notaryCertificate.getValue('$content');
 
             var citation = await notary.citeDocument(document);
             var isValid = await notary.validDocument(document, certificate);
@@ -164,7 +164,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
             expect(matches).to.equal(true);
 
             const copy = document.duplicate();
-            copy.setParameter('$tag', document.getValue('$document').getParameter('$tag')),
+            copy.setParameter('$tag', document.getValue('$content').getParameter('$tag')),
             copy.setParameter('$version', bali.component('v2'));
             copy.setParameter('$permissions', bali.component('/bali/permissions/public/v1'));
             copy.setParameter('$previous', bali.pattern.NONE);
