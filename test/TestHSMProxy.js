@@ -11,8 +11,9 @@
 const debug = 3;  // debug level [0..3]
 const crypto = require('crypto');
 const mocha = require('mocha');
-const assert = require('chai').assert;
-const expect = require('chai').expect;
+const chai = require('chai');
+const expect = chai.expect;
+const assert = require('assert');
 const bali = require('bali-component-framework').api();
 const account = bali.tag();
 const directory = 'test/config/';
@@ -183,12 +184,9 @@ describe('Bali Nebula™ HSM Proxy', function() {
 
         it('should erase all keys properly', async function() {
             await notary.forgetKey();
-            try {
+            assert.rejects(async function() {
                 await notary.notarizeDocument(component);
-                assert.fail('The attempt to sign a component without a key should have failed.');
-            } catch (error) {
-                // expected
-            };
+            });
         });
 
     });
