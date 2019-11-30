@@ -184,7 +184,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
 
         it('should erase all keys properly', async function() {
             await notary.forgetKey();
-            assert.rejects(async function() {
+            await assert.rejects(async function() {
                 await notary.notarizeDocument(component);
             });
         });
