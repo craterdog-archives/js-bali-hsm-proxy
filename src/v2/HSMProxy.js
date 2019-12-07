@@ -470,6 +470,19 @@ exports.HSMProxy = HSMProxy;
 // PRIVATE FUNCTIONS
 
 /**
+ * This function causes the current thread to sleep for the specified number of milliseconds.
+ * 
+ * @param {Number} milliseconds The number of milliseconds to sleep.
+ * @returns {Promise} A promise to return after the specified time has gone by.
+ */
+const sleep = function(milliseconds) {
+    return new Promise(function(resolve) {
+        setTimeout(resolve, milliseconds);
+    });
+};
+
+
+/**
  * This function formats a request into a binary format prior to sending it via bluetooth.
  * Each request has the following byte format:
  *   Request Type (1 byte) [0..255]
@@ -536,8 +549,9 @@ const formatRequest = function(type, ...args) {
  * @returns {Promise} A promise to return the response from the service.
  */
 const processRequest = async function(request, debug) {
-    var tryAgain = 3;  // retry twice
-    while (tryAgain--) {
+    var attempts = 5;  // retry five times at 0, 1, 2, 3, 4 second intervals
+    var count = 0;
+    while (count < attempts) {
         var peripheral;
         try {
             peripheral = await findPeripheral(debug);
@@ -585,9 +599,11 @@ const processRequest = async function(request, debug) {
                 throw Error("The UART service doesn't support the right characteristics.");
             }
         } catch (cause) {
-            if (tryAgain) {
-                if (debug > 0) console.error('Request failed, trying again: ' + cause);
+            if (count++ < attempts) {
+                const seconds = count - 1;
+                if (debug > 0) console.error('Request failed, trying again in ' + seconds + ' seconds: ' + cause);
                 if (peripheral) await disconnect(peripheral, debug);
+                await sleep(seconds * 1000);  // convert to milliseconds
                 continue;
             }
             throw Error('Request failed too many times: ' + cause);
