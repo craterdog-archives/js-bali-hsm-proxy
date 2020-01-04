@@ -31,11 +31,11 @@
     "grunt-mocha-test": "^0.13.3",
     "grunt-webpack": "^3.1.3",
     "mocha": "^6.2.2",
-    "webpack": "^4.41.3",
-    "bali-digital-notary": "^2.6.2"
+    "webpack": "^4.41.4",
+    "bali-digital-notary": "^2.9.1"
   },
   "dependencies": {
     "@abandonware/noble": "^1.9.2-5",
-    "bali-component-framework": "^2.4.1"
+    "bali-component-framework": "^2.5.1"
   }
 }

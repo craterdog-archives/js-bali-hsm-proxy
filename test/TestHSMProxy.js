@@ -20,6 +20,7 @@ const directory = 'test/config/';
 const proxy = require('../').proxy(directory, debug);
 const notary = require('bali-digital-notary').notary(proxy, account, directory, debug);
 
+// NOTE: this function must be called using 'await'
 const sleep = function(ms){
     return new Promise(resolve=>{
         setTimeout(resolve,ms);
@@ -30,7 +31,17 @@ describe('Bali Nebula™ HSM Proxy', function() {
 
     var notaryCertificate;
     var certificateCitation;
-    var component = bali.component('[$foo: "bar"]($type: /bali/examples/Content/v1, $tag: #MFPCRNKS2SG20CD7VQ6KD329X7382KJY, $version: v1, $permissions: /bali/permissions/public/v1, $previous: none)');
+    var component = bali.catalog(
+        {
+            $foo: 'bar'
+        }, {
+            $type: bali.component('/bali/examples/Content/v1'),
+            $tag: bali.tag(),
+            $version: bali.version(),
+            $permissions: bali.component('/bali/permissions/public/v1'),
+            $previous: undefined
+        }
+    );
 
     describe('Test Key Erasure', function() {
 
