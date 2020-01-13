@@ -156,7 +156,7 @@ const HSMProxy = function(directory, debug) {
     /**
      * This method returns a string describing the attributes of the HSM. It must not be an
      * asynchronous function since it is part of the JavaScript language.
-     * 
+     *
      * @returns {String} A string describing the attributes of the HSM.
      */
     this.toString = function() {
@@ -171,7 +171,7 @@ const HSMProxy = function(directory, debug) {
 
     /**
      * This method returns the unique tag for the security module.
-     * 
+     *
      * @returns {Tag} The unique tag for the security module.
      */
     this.getTag = async function() {
@@ -196,7 +196,7 @@ const HSMProxy = function(directory, debug) {
     /**
      * This method returns the version of the security protocol supported by this
      * security module.
-     * 
+     *
      * @returns {Version} The version string of the security protocol supported by this security
      * module.
      */
@@ -217,7 +217,7 @@ const HSMProxy = function(directory, debug) {
 
     /**
      * This method generates a new public-private key pair.
-     * 
+     *
      * @returns {Binary} A binary string containing the new public key.
      */
     this.generateKeys = async function() {
@@ -254,7 +254,7 @@ const HSMProxy = function(directory, debug) {
 
     /**
      * This method replaces the existing public-private key pair with a new one.
-     * 
+     *
      * @returns {Binary} A binary string containing the new public key.
      */
     this.rotateKeys = async function() {
@@ -295,7 +295,7 @@ const HSMProxy = function(directory, debug) {
 
     /**
      * This method deletes any existing public-private key pairs.
-     * 
+     *
      * @returns {Boolean} Whether or not the keys were successfully erased.
      */
     this.eraseKeys = async function() {
@@ -366,7 +366,7 @@ const HSMProxy = function(directory, debug) {
      * This allows a new certificate to be signed using the previous private key.
      * The resulting digital signature can then be verified using the corresponding
      * public key.
-     * 
+     *
      * @param {Buffer} bytes The bytes to be digitally signed.
      * @returns {Binary} A binary string containing the resulting digital signature.
      */
@@ -471,7 +471,7 @@ exports.HSMProxy = HSMProxy;
 
 /**
  * This function causes the current thread to sleep for the specified number of milliseconds.
- * 
+ *
  * @param {Number} milliseconds The number of milliseconds to sleep.
  * @returns {Promise} A promise to return after the specified time has gone by.
  */
@@ -538,11 +538,11 @@ const formatRequest = function(type, ...args) {
  * This function sends a request to a BLEUart service for processing. The response is
  * returned from the service.  The function is asynchronous and returns a promise to
  * attempt to process the request.
- * 
+ *
  * Note: A BLEUart service can only handle requests up to 512 bytes in length. If the
  * specified request is longer than this limit, it is broken up into separate 512 byte
  * blocks and each block is sent as a separate BLE request.
- * 
+ *
  * @param {Buffer} request The request to be processed.
  * @param {Boolean} debug An optional flag that determines whether or not exceptions
  * will be logged to the error console.
@@ -572,16 +572,16 @@ const processRequest = async function(request, debug) {
                 while (block > 0) {
                     // the offset includes the header bytes
                     offset = block * BLOCK_SIZE + 2;
-            
+
                     // calculate the current block size
                     blockSize = Math.min(request.length - offset, BLOCK_SIZE);
-            
+
                     // copy the request block into the buffer
                     buffer = request.slice(offset, offset + blockSize);
-            
+
                     // prepend the header to the buffer
                     buffer = Buffer.concat([Buffer.from([0x00, block & 0xFF]), buffer], blockSize + 2);
-    
+
                     await processBlock(input, output, buffer, debug);
                     if (debug > 2) console.log('A block was successfully sent to the HSM.');
                     block--;
@@ -616,7 +616,7 @@ const processRequest = async function(request, debug) {
  * This function searches for a bluetooth peripheral that implements the hardware security
  * module (HSM). Once one is found it stops searching. The function is asynchronous and
  * returns a promise to attempt to find the peripheral.
- * 
+ *
  * @param {Boolean} debug An optional flag that determines whether or not exceptions
  * will be logged to the error console.
  * @returns {Promise} A promise to return a matching peripheral.
@@ -701,7 +701,7 @@ const retrieveCharacteristics = function(service, debug) {
  * This function writes a block of bytes to the input characteristic of a BLEUart service
  * and reads the response from the output characteristic.  The function is asynchronous and
  * returns a promise to attempt to process the block of bytes.
- * 
+ *
  * @param {Characteristic} input The input characteristic for the BLEUart service.
  * @param {Characteristic} output The output characteristic for the BLEUart service.
  * @param {Buffer} block The block of bytes to be written.

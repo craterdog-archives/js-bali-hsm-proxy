@@ -12,7 +12,7 @@
 
 /**
  * This function returns an object that implements the API for a remote hardware security module.
- * 
+ *
  * @param {String} directory An optional directory to be used for local configuration storage.
  * @param {Boolean|Number} debug An optional number in the range [0..3] that controls
  * the level of debugging that occurs:
