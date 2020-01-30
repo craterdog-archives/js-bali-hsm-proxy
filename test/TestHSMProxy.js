@@ -99,7 +99,6 @@ describe('Bali Nebula™ HSM Proxy', function() {
             const tag = bali.tag();
             const previous = bali.catalog({
                 $protocol: bali.version(),
-                $timestamp: bali.component('<2019-02-24T22:41:18.843>'),
                 $tag: tag,
                 $version: bali.version([2, 3]),
                 $digest: bali.component("'JB2NG73VTB957T9TZWT44KRZVQ467KWJ2MSJYT6YW2RQAYQMSR861XGM5ZCDCPNJYR612SJT9RFKHA9YZ5DJMLYC7N3127AY4QDVJ38'")
