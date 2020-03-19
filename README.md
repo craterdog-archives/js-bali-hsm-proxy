@@ -1,5 +1,5 @@
 ## The Bali HSM Proxy™ (v2)
-![Logo](CraterDogLogo.png)
+<img src="https://craterdog.com/images/CraterDogLogo.png" width="50%">
 
 ### Quick Links
 For more information on this project click on the following links:
