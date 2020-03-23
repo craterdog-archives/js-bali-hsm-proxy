@@ -15,7 +15,8 @@ npm install bali-hsm-proxy
 ```
 Then add the following line to your NodeJS modules:
 ```
-const bali = require('bali-hsm-proxy');
+const debug = 1;  // debugging level: [0..3]
+const bali = require('bali-hsm-proxy').proxy(directory, debug);
 ```
 
 ### Contributing
