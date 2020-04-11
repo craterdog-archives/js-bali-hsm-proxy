@@ -1,6 +1,6 @@
 {
   "name": "bali-hsm-proxy",
-  "version": "2.4.4",
+  "version": "2.4.5",
   "description": "This project defines a JavaScript implementation of the Bali Nebula™ security module interface that acts as a proxy to a BLE based hardware security module.",
   "repository": {
     "type": "git",
@@ -32,10 +32,10 @@
     "chai": "^4.2.0",
     "mocha": "^7.1.1",
     "webpack": "^4.42.1",
-    "bali-digital-notary": "^2.10.6"
+    "bali-digital-notary": "^2.10.7"
   },
   "dependencies": {
     "@abandonware/noble": "^1.9.2-7",
-    "bali-component-framework": "^2.10.0"
+    "bali-component-framework": "^2.11.1"
   }
 }
