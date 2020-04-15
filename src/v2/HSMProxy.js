@@ -386,8 +386,10 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log("\nSigning the bytes...");
 
             // retrieve the proxy key
-            var proxyKey = configuration.removeValue('$previousProxyKey');
-            if (!proxyKey) {
+            var proxyKey = configuration.getValue('$previousProxyKey');
+            if (proxyKey) {
+                configuration.removeValue('$previousProxyKey');
+            } else {
                 proxyKey = configuration.getValue('$proxyKey');
             }
 
