@@ -95,7 +95,7 @@ exports.cli = function() {
             });
         },
 
-        notarizedDocument: function(catalog) {
+        notarizeDocument: function(catalog) {
             notary.notarizeDocument(catalog).then(function(document) {
                 console.log('The notarized document is: ' + document);
                 this.document = document;
@@ -104,9 +104,9 @@ exports.cli = function() {
             });
         },
 
-        validDocument: function(document) {
+        validContract: function(document) {
             const certificate = this.certificate.getValue('$content');
-            notary.validDocument(document, certificate).then(function(isValid) {
+            notary.validContract(document, certificate).then(function(isValid) {
                 console.log('The document is ' + (isValid ? '' : 'not ') + 'valid');
             }).catch(function(exception) {
                 console.error('Received the following exception: ' + exception);
