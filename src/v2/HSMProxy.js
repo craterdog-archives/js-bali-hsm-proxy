@@ -28,9 +28,6 @@ const bali = require('bali-component-framework').api();
 
 // PRIVATE CONSTANTS
 
-// the POSIX end of line character
-const EOL = '\n';
-
 // the algorithms for this version of the protocol
 const PROTOCOL = 'v2';
 const DIGEST = 'sha512';
@@ -56,6 +53,8 @@ const STATES = {
     $twoKeys: [  undefined,     '$loneKey',    undefined  ]
 };
 
+const moduleName = '/bali/notary/' + PROTOCOL + '/HSMProxy';
+
 
 // PUBLIC FUNCTIONS
 
@@ -79,8 +78,7 @@ const HSMProxy = function(directory, debug) {
     // validate the arguments
     if (debug === null || debug === undefined) debug = 0;  // default is off
     if (debug > 1) {
-        const validator = bali.validator(debug);
-        validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$HSMProxy', '$directory', directory, [
+        bali.component.validateArgument(moduleName, '$HSMProxy', '$directory', directory, [
             '/javascript/Undefined',
             '/javascript/String'
         ]);
@@ -103,12 +101,12 @@ const HSMProxy = function(directory, debug) {
                     $tag: bali.tag(),  // new random tag
                     $state: '$keyless'
                 });
-                await configurator.store(configuration.toString() + EOL);
+                await configurator.store(bali.document(configuration));
             }
-            controller = bali.controller(REQUESTS, STATES, configuration.getValue('$state').toString(), debug);
+            controller = bali.controller(REQUESTS, STATES, configuration.getAttribute('$state').toString(), debug);
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$loadConfiguration',
                 $exception: '$storageException',
                 $text: 'The attempt to load the current configuration failed.'
@@ -120,10 +118,10 @@ const HSMProxy = function(directory, debug) {
 
     const storeConfiguration = async function() {
         try {
-            await configurator.store(configuration.toString() + EOL);
+            await configurator.store(bali.document(configuration));
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$storeConfiguration',
                 $exception: '$storageException',
                 $text: 'The attempt to store the current configuration failed.'
@@ -140,7 +138,7 @@ const HSMProxy = function(directory, debug) {
             controller = undefined;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$deleteConfiguration',
                 $exception: '$storageException',
                 $text: 'The attempt to delete the current configuration failed.'
@@ -161,7 +159,7 @@ const HSMProxy = function(directory, debug) {
      */
     this.toString = function() {
         const catalog = bali.catalog({
-            $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+            $module: moduleName,
             $protocol: PROTOCOL,
             $digest: DIGEST,
             $signature: SIGNATURE
@@ -179,10 +177,10 @@ const HSMProxy = function(directory, debug) {
             // load the current configuration if necessary
             if (!configuration) await loadConfiguration();
 
-            return configuration.getValue('$tag');
+            return configuration.getAttribute('$tag');
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$getTag',
                 $exception: '$unexpected',
                 $text: 'The tag for the security module could not be retrieved.'
@@ -205,7 +203,7 @@ const HSMProxy = function(directory, debug) {
             return bali.component(PROTOCOL);
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$getProtocol',
                 $exception: '$unexpected',
                 $text: 'The protocol supported by the security module could not be retrieved.'
@@ -231,18 +229,18 @@ const HSMProxy = function(directory, debug) {
             const proxyKey = bali.binary(crypto.randomBytes(KEY_SIZE));
             const request = formatRequest('generateKeys', proxyKey.getValue());
             const publicKey = bali.binary(await processRequest(request, debug));
-            configuration.setValue('$proxyKey', proxyKey);
+            configuration.setAttribute('$proxyKey', proxyKey);
 
             // update the configuration
             const state = controller.transitionState('$generateKeys');
-            configuration.setValue('$state', state);
+            configuration.setAttribute('$state', state);
             await storeConfiguration(configurator, configuration, debug);
 
             if (debug > 2) console.log('public key: ' + publicKey);
             return publicKey;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$generateKeys',
                 $exception: '$unexpected',
                 $text: 'A new key pair could not be generated.'
@@ -264,26 +262,26 @@ const HSMProxy = function(directory, debug) {
             controller.validateEvent('$rotateKeys');
 
             // save the previous proxy key
-            const previousProxyKey = configuration.getValue('$proxyKey');
-            configuration.setValue('$previousProxyKey', previousProxyKey);
+            const previousProxyKey = configuration.getAttribute('$proxyKey');
+            configuration.setAttribute('$previousProxyKey', previousProxyKey);
 
             // generate a new key pair
             if (debug > 2) console.log("\nGenerating a new key pair...");
             const proxyKey = bali.binary(crypto.randomBytes(KEY_SIZE));
             const request = formatRequest('rotateKeys', previousProxyKey.getValue(), proxyKey.getValue());
             const publicKey = bali.binary(await processRequest(request, debug));
-            configuration.setValue('$proxyKey', proxyKey);
+            configuration.setAttribute('$proxyKey', proxyKey);
 
             // update the configuration
             const state = controller.transitionState('$rotateKeys');
-            configuration.setValue('$state', state);
+            configuration.setAttribute('$state', state);
             await storeConfiguration(configurator, configuration, debug);
 
             if (debug > 2) console.log('public key: ' + publicKey);
             return publicKey;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$rotateKeys',
                 $exception: '$unexpected',
                 $text: 'The key pair could not be rotated.'
@@ -313,7 +311,7 @@ const HSMProxy = function(directory, debug) {
             return succeeded;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$eraseKeys',
                 $exception: '$unexpected',
                 $text: 'The keys could not be erased.'
@@ -335,8 +333,7 @@ const HSMProxy = function(directory, debug) {
         try {
             // validate the arguments
             if (debug > 1) {
-                const validator = bali.validator(debug);
-                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$digestBytes', '$bytes', bytes, [
+                bali.component.validateArgument(moduleName, '$digestBytes', '$bytes', bytes, [
                     '/nodejs/Buffer'
                 ]);
             }
@@ -350,7 +347,7 @@ const HSMProxy = function(directory, debug) {
             return digest;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$digestBytes',
                 $exception: '$unexpected',
                 $text: 'A digest of the bytes could not be generated.'
@@ -374,8 +371,7 @@ const HSMProxy = function(directory, debug) {
         try {
             // validate the arguments
             if (debug > 1) {
-                const validator = bali.validator(debug);
-                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$signBytes', '$bytes', bytes, [
+                bali.component.validateArgument(moduleName, '$signBytes', '$bytes', bytes, [
                     '/nodejs/Buffer'
                 ]);
             }
@@ -386,11 +382,11 @@ const HSMProxy = function(directory, debug) {
             if (debug > 2) console.log("\nSigning the bytes...");
 
             // retrieve the proxy key
-            var proxyKey = configuration.getValue('$previousProxyKey');
+            var proxyKey = configuration.getAttribute('$previousProxyKey');
             if (proxyKey) {
-                configuration.removeValue('$previousProxyKey');
+                configuration.removeAttribute('$previousProxyKey');
             } else {
-                proxyKey = configuration.getValue('$proxyKey');
+                proxyKey = configuration.getAttribute('$proxyKey');
             }
 
             // digitally sign the bytes using the private key
@@ -399,14 +395,14 @@ const HSMProxy = function(directory, debug) {
 
             // update the configuration
             const state = controller.transitionState('$signBytes');
-            configuration.setValue('$state', state);
+            configuration.setAttribute('$state', state);
             await storeConfiguration(configurator, configuration, debug);
 
             if (debug > 2) console.log('signature: ' + signature);
             return signature;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$signBytes',
                 $exception: '$unexpected',
                 $text: 'A digital signature of the bytes could not be generated.'
@@ -432,14 +428,13 @@ const HSMProxy = function(directory, debug) {
         try {
             // validate the arguments
             if (debug > 1) {
-                const validator = bali.validator(debug);
-                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$validSignature', '$aPublicKey', aPublicKey, [
-                    '/bali/elements/Binary'
+                bali.component.validateArgument(moduleName, '$validSignature', '$aPublicKey', aPublicKey, [
+                    '/bali/strings/Binary'
                 ]);
-                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$validSignature', '$signature', signature, [
-                    '/bali/elements/Binary'
+                bali.component.validateArgument(moduleName, '$validSignature', '$signature', signature, [
+                    '/bali/strings/Binary'
                 ]);
-                validator.validateType('/bali/notary/' + PROTOCOL + '/HSMProxy', '$validSignature', '$bytes', bytes, [
+                bali.component.validateArgument(moduleName, '$validSignature', '$bytes', bytes, [
                     '/nodejs/Buffer'
                 ]);
             }
@@ -453,7 +448,7 @@ const HSMProxy = function(directory, debug) {
             return isValid;
         } catch (cause) {
             const exception = bali.exception({
-                $module: '/bali/notary/' + PROTOCOL + '/HSMProxy',
+                $module: moduleName,
                 $procedure: '$validSignature',
                 $exception: '$unexpected',
                 $text: 'The digital signature of the bytes could not be validated.'

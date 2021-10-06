@@ -8,7 +8,7 @@
  * Source Initiative. (See http://opensource.org/licenses/MIT)          *
  ************************************************************************/
 
-const debug = 3;  // debug level [0..3]
+const debug = 0;  // debug level [0..3]
 const crypto = require('crypto');
 const mocha = require('mocha');
 const chai = require('chai');
@@ -31,7 +31,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
 
     var certificate;
     var citation;
-    const document = bali.instance('/bali/examples/Content/v1',{
+    const document = bali.instance('/nebula/examples/Content/v1',{
         $foo: 'bar'
     });
     const style = 'https://bali-nebula.net/static/styles/BDN.css';
@@ -50,7 +50,7 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Key Generation', function() {
 
         it('should return the correct account tag', function() {
-            expect(notary.getAccount().isEqualTo(account)).to.equal(true);
+            expect(bali.areEqual(notary.getAccount(), account)).to.equal(true);
         });
 
         it('should return the protocols', function() {
@@ -75,13 +75,13 @@ describe('Bali Nebula™ HSM Proxy', function() {
     describe('Test Certificate Validation', function() {
 
         it('should validate the certificate', async function() {
-            expect(certificate.getValue('$protocol').toString()).to.equal('v2');
+            expect(certificate.getAttribute('$protocol').toString()).to.equal('v2');
             var isValid = await notary.validContract(certificate, certificate);
             expect(isValid).to.equal(true);
         });
 
         it('should validate the citation for the certificate', async function() {
-            var isValid = await notary.citationMatches(citation, certificate.getValue('$document'));
+            var isValid = await notary.citationMatches(citation, certificate.getAttribute('$document'));
             expect(isValid).to.equal(true);
         });
 
@@ -112,26 +112,25 @@ describe('Bali Nebula™ HSM Proxy', function() {
             $version: 'v2.3',
             $digest: "'JB2NG73VTB957T9TZWT44KRZVQ467KWJ2MSJYT6YW2RQAYQMSR861XGM5ZCDCPNJYR612SJT9RFKHA9YZ5DJMLYC7N3127AY4QDVJ38'"
         }, {
-            $type: '/bali/notary/Citation/v1'
+            $type: '/nebula/notary/Citation/v1'
         });
         const transaction = bali.catalog({
             $transactionId: bali.tag(),
             $timestamp: bali.moment(),
-            $consumer: 'Derk Norton',
+            $consumer: '"Derk Norton"',
             $merchant: '<https://www.starbucks.com/>',
             $amount: 4.95
         }, {
             $type: '/acme/types/Transaction/v2.3',
             $tag: tag,
             $version: 'v2.4',
-            $permissions: '/bali/permissions/public/v1',
+            $permissions: '/nebula/permissions/public/v1',
             $previous: previous
         });
 
         it('should cite a document properly', async function() {
             citation = await notary.citeDocument(transaction);
             expect(citation).to.exist;
-            console.log('citation: ' + citation);
         });
 
         it('should validate the citation properly', async function() {
@@ -180,10 +179,10 @@ describe('Bali Nebula™ HSM Proxy', function() {
             var isValid = await notary.validContract(contract, certificate);
             expect(isValid).to.equal(true);
 
-            const copy = document.duplicate();
+            const copy = bali.duplicate(document);
             copy.setParameter('$tag', document.getParameter('$tag')),
             copy.setParameter('$version', 'v2');
-            copy.setParameter('$permissions', '/bali/permissions/public/v1');
+            copy.setParameter('$permissions', '/nebula/permissions/public/v1');
             copy.setParameter('$previous', 'none');
             contract = await notary.notarizeDocument(copy);
 
