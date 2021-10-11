@@ -8,7 +8,7 @@
  * Source Initiative. (See http://opensource.org/licenses/MIT)          *
  ************************************************************************/
 
-const debug = 0;  // debug level [0..3]
+const debug = 1;  // debug level [0..3]
 const crypto = require('crypto');
 const mocha = require('mocha');
 const chai = require('chai');
